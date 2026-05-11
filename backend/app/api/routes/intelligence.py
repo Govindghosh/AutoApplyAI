@@ -8,6 +8,7 @@ from app.models.user import User
 from app.models.job import Job
 from app.models.outcome import ApplicationOutcome
 from app.services.intelligence_service import IntelligenceService
+from app.services.recommendation_intelligence_service import RecommendationIntelligenceService
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/intelligence", tags=["intelligence"])
@@ -60,5 +61,6 @@ async def get_intelligence_stats(
         "source_performance": IntelligenceService.get_source_performance(db, current_user.id),
         "score_correlation": IntelligenceService.get_score_correlation(db, current_user.id),
         "resume_performance": IntelligenceService.get_resume_performance(db, current_user.id),
-        "actionable_insights": IntelligenceService.get_actionable_insights(db, current_user.id)
+        "actionable_insights": IntelligenceService.get_actionable_insights(db, current_user.id),
+        "governed_recommendations": RecommendationIntelligenceService.build(db, current_user.id),
     }

@@ -1,16 +1,23 @@
 from app.automation.ats.base import ATSAdapter
+from app.automation.workflow_primitives import WorkflowPrimitives
 from playwright.async_api import Page
 from typing import Dict, Any
-from app.core.logging import logger
 
 class LeverAdapter(ATSAdapter):
     """
     High-fidelity automation driver for the Lever ATS platform.
     """
+    platform = "Lever"
+    selector_catalog = {
+        "name": "input[name='name']",
+        "email": "input[name='email']",
+        "phone": "input[name='phone']",
+        "resume": "input[name='resume']",
+        "submit_button": ".post-button",
+    }
     
     async def navigate(self, page: Page, url: str):
-        logger.info(f"Navigating to Lever job: {url}")
-        await page.goto(url, wait_until="domcontentloaded")
+        await WorkflowPrimitives.navigate_with_retry(page, url, "Lever")
 
     async def fill_personal_info(self, page: Page, profile: Dict[str, Any]):
         # Lever uses different patterns (often name-based)
@@ -22,19 +29,10 @@ class LeverAdapter(ATSAdapter):
         
         for selector, value in mappings.items():
             if value:
-                try:
-                    await page.fill(selector, value)
-                except Exception:
-                    self.log_selector_failure(selector, "Lever")
+                await WorkflowPrimitives.fill_field(page, selector, value, "Lever")
 
     async def upload_resume(self, page: Page, resume_path: str):
-        try:
-            # Lever standard resume input
-            await page.set_input_files("input[name='resume']", resume_path)
-            logger.info("Resume uploaded to Lever successfully.")
-        except Exception as e:
-            self.log_selector_failure("resume_upload", "Lever")
-            raise e
+        await WorkflowPrimitives.upload_file(page, "input[name='resume']", resume_path, "Lever")
 
     async def handle_custom_questions(self, page: Page, ai_answers: Dict[str, str]):
         # Lever custom questions often use application-question classes
@@ -43,7 +41,7 @@ class LeverAdapter(ATSAdapter):
     async def submit(self, page: Page) -> bool:
         try:
             # Lever often has a 'submit' or 'apply' button at the bottom
-            await page.click(".post-button")
+            await WorkflowPrimitives.click_button(page, self.selector_catalog["submit_button"], "Lever")
             return True
         except Exception:
             self.log_selector_failure("submit_button", "Lever")

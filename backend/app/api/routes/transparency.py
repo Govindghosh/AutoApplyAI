@@ -8,6 +8,8 @@ from app.models.user import User
 from app.models.workflow import ApplicationWorkflow, WorkflowStep
 from app.models.event import SystemEvent
 from app.services.event_service import EventService, EventType
+from app.services.event_taxonomy_service import EventTaxonomyService
+from app.services.personalization_service import OrchestrationPersonalizationService
 from app.services.workflow_explainability import WorkflowExplainability
 
 router = APIRouter(prefix="/transparency", tags=["transparency"])
@@ -39,6 +41,7 @@ async def get_workflow_trace(
     steps = db.query(WorkflowStep).filter(
         WorkflowStep.workflow_id == workflow.id
     ).order_by(WorkflowStep.id.asc()).all()
+    profile = OrchestrationPersonalizationService.get_or_create_profile(db, current_user.id)
 
     # Get all events related to this specific workflow/job
     events = db.query(SystemEvent).filter(
@@ -60,8 +63,14 @@ async def get_workflow_trace(
             "status": workflow.status,
             "platform": workflow.platform_type,
             "created_at": workflow.created_at.isoformat() if workflow.created_at else None,
-            "summary": WorkflowExplainability.describe_workflow(workflow, steps),
+            "summary": OrchestrationPersonalizationService.compress_workflow_summary(
+                WorkflowExplainability.describe_workflow(workflow, steps),
+                workflow,
+                steps,
+                profile,
+            ),
         },
+        "personalization": OrchestrationPersonalizationService.effective_policy(profile),
         "steps": [
             {
                 "id": step.id,
@@ -74,13 +83,19 @@ async def get_workflow_trace(
                 "duration": step.duration_ms,
                 "input_data": step.input_data,
                 "output_data": step.output_data,
-                "explanation": WorkflowExplainability.describe_step(step),
+                "explanation": OrchestrationPersonalizationService.compress_step_explanation(
+                    WorkflowExplainability.describe_step(step),
+                    step,
+                    workflow,
+                    profile,
+                ),
             } for step in steps
         ],
         "timeline": [
             {
                 "event_id": e.event_id,
                 "type": e.event_type,
+                "category": EventTaxonomyService.category_for(e.event_type),
                 "payload": e.payload,
                 "timestamp": e.timestamp.isoformat()
             } for e in events

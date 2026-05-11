@@ -10,6 +10,8 @@ import {
   Lightbulb,
   BarChart3,
   Zap,
+  ShieldCheck,
+  RotateCcw,
 } from "lucide-react";
 import type { IntelligenceInsight, IntelligenceStats } from "@/lib/types";
 
@@ -18,6 +20,22 @@ const emptyStats: IntelligenceStats = {
   source_performance: [],
   score_correlation: [],
   resume_performance: [],
+  governed_recommendations: {
+    workflow_confidence: {
+      overall: "low_confidence",
+      platforms: [],
+      factors: {},
+    },
+    resume_variant_recommendations: [],
+    ats_strategy: [],
+    guided_recovery: [],
+    trust_profiles: {
+      current_profile: "standard",
+      available_profiles: [],
+      signals: {},
+    },
+    recommendation_governance: {},
+  },
 };
 
 const getInsightStyle = (severity: IntelligenceInsight["severity"]) => {
@@ -32,6 +50,12 @@ const getInsightIconStyle = (severity: IntelligenceInsight["severity"]) => {
   return "bg-blue-500/20 text-blue-400";
 };
 
+const getConfidenceStyle = (confidence: string) => {
+  if (confidence === "high_confidence") return "text-green-400 border-green-500/20 bg-green-500/10";
+  if (confidence === "medium_confidence") return "text-amber-400 border-amber-500/20 bg-amber-500/10";
+  return "text-blue-400 border-blue-500/20 bg-blue-500/10";
+};
+
 export default function IntelligenceCenter() {
   const { data = emptyStats, isLoading } = useQuery<IntelligenceStats>({
     queryKey: ["intelligence_stats"],
@@ -40,12 +64,85 @@ export default function IntelligenceCenter() {
 
   if (isLoading) return <div className="p-8 text-slate-500 animate-pulse">Calculating operational intelligence...</div>;
 
+  const governed = data.governed_recommendations ?? emptyStats.governed_recommendations!;
+  const topResume = governed.resume_variant_recommendations[0];
+  const topAts = governed.ats_strategy[0];
+
   return (
     <div className="max-w-7xl mx-auto space-y-8">
       <header>
         <h1 className="text-3xl font-black tracking-tight text-white mb-2">INTELLIGENCE CENTER</h1>
         <p className="text-slate-400">Operational decision support and strategy optimization.</p>
       </header>
+
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="rounded-3xl border border-slate-800 bg-slate-900/50 p-6">
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <h2 className="flex items-center gap-2 text-lg font-black uppercase tracking-tight text-white">
+              <ShieldCheck size={20} className="text-green-400" />
+              Workflow Confidence
+            </h2>
+            <span className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-widest ${getConfidenceStyle(governed.workflow_confidence.overall)}`}>
+              {governed.workflow_confidence.overall.replace(/_/g, " ")}
+            </span>
+          </div>
+          <div className="space-y-3">
+            {governed.workflow_confidence.platforms.slice(0, 3).map((item) => (
+              <div key={item.target} className="flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-950 p-4">
+                <span className="text-sm font-bold text-slate-300">{item.target}</span>
+                <span className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-widest ${getConfidenceStyle(item.confidence)}`}>
+                  {item.confidence.replace(/_/g, " ")}
+                </span>
+              </div>
+            ))}
+            {governed.workflow_confidence.platforms.length === 0 && (
+              <p className="rounded-2xl border border-dashed border-slate-800 p-4 text-sm text-slate-500">No workflow confidence samples yet.</p>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-slate-800 bg-slate-900/50 p-6">
+          <div className="mb-5 flex items-center gap-2 text-lg font-black uppercase tracking-tight text-white">
+            <Award size={20} className="text-amber-400" />
+            Resume Guidance
+          </div>
+          {topResume ? (
+            <div className="rounded-2xl border border-slate-800 bg-slate-950 p-5">
+              <p className="text-sm font-black uppercase tracking-widest text-white">{topResume.target.replace("resume:", "Variant ")}</p>
+              <p className="mt-3 text-3xl font-black text-amber-400">{topResume.raw_score.toFixed(1)}%</p>
+              <p className="mt-2 text-xs leading-relaxed text-slate-500">{topResume.recommended_action.replace(/_/g, " ")}</p>
+              <span className={`mt-4 inline-flex rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-widest ${getConfidenceStyle(topResume.confidence)}`}>
+                {topResume.sample_quality}
+              </span>
+            </div>
+          ) : (
+            <p className="rounded-2xl border border-dashed border-slate-800 p-4 text-sm text-slate-500">No resume recommendation samples yet.</p>
+          )}
+        </div>
+
+        <div className="rounded-3xl border border-slate-800 bg-slate-900/50 p-6">
+          <div className="mb-5 flex items-center gap-2 text-lg font-black uppercase tracking-tight text-white">
+            <RotateCcw size={20} className="text-blue-400" />
+            Guided Recovery
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
+              <p className="text-2xl font-black text-white">{governed.guided_recovery.length}</p>
+              <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">Open paths</p>
+            </div>
+            <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
+              <p className="text-2xl font-black capitalize text-white">{governed.trust_profiles.current_profile.replace(/_/g, " ")}</p>
+              <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">Trust profile</p>
+            </div>
+          </div>
+          {topAts && (
+            <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950 p-4">
+              <p className="text-sm font-black text-white">{topAts.target}</p>
+              <p className="mt-1 text-xs text-slate-500">{topAts.message}</p>
+            </div>
+          )}
+        </div>
+      </section>
 
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {data.actionable_insights.map((insight, i) => (

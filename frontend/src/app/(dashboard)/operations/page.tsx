@@ -18,6 +18,9 @@ import {
   RotateCcw,
   TrendingUp,
   UserCheck,
+  Scale,
+  Wrench,
+  ServerCog,
 } from "lucide-react";
 
 const emptyBehavioralValidation: OperationsStats["behavioral_validation"] = {
@@ -174,6 +177,171 @@ const emptySignalIntegrity: OperationsStats["signal_integrity"] = {
   },
 };
 
+const emptyGovernance: OperationsStats["governance"] = {
+  review_queue: [],
+  timeline: [],
+  metrics: {
+    recommendation_acceptance_rate: 0,
+    rollback_frequency: 0,
+    policy_drift_rate: 0,
+    false_recommendation_rate: 0,
+    human_override_frequency: 0,
+    pending_reviews: 0,
+  },
+  guardrails: {
+    note: "Review-eligible signals require human approval before policy changes.",
+    approval_required_for: [],
+    shadow_modes: [],
+  },
+};
+
+const emptySupportability: OperationsStats["supportability"] = {
+  incident_console: [],
+  trace_explorer: [],
+  classification: {
+    categories: [],
+    supported_classes: [],
+  },
+  recovery_recommendations: [],
+  cross_layer_correlation: {},
+  metrics: {
+    mean_recovery_time_seconds: 0,
+    replay_recovery_success: 0,
+    incident_recurrence_rate: 0,
+    support_escalation_volume: 0,
+    ats_drift_detection_speed_minutes: 0,
+    open_incidents: 0,
+  },
+};
+
+const emptyReliability: OperationsStats["reliability_scaling"] = {
+  horizontal_worker_orchestration: {
+    distributed_worker_pools: [],
+    browser_resource_scheduling: {
+      policy: "Cap active browser sessions by worker and ATS.",
+      active_workflows: 0,
+      risk: "normal",
+    },
+  },
+  durable_redundancy: {},
+  security_secret_governance: {},
+  observability_stack: {},
+  chaos_testing: {
+    scenarios: [],
+    last_result: "not_run",
+  },
+  cost_capacity: {
+    browser_cost_per_workflow_units: 0,
+    orchestration_resource_usage_units: 0,
+    replay_overhead: 0,
+    ats_operational_cost: [],
+    worker_saturation_threshold: "80_percent_queue_utilization",
+  },
+  slos: {},
+};
+
+const emptyOrchestrationCompression: NonNullable<OperationsStats["orchestration_compression"]> = {
+  primitive_registry: {
+    version: "1.0.0",
+    total_primitives: 0,
+    primitives: [],
+    step_mapping: {},
+  },
+  state_surface: {
+    hierarchy: {},
+    workflow_status_map: {},
+    job_status_map: {},
+    active_state_counts: [],
+    unique_canonical_states: 0,
+  },
+  event_taxonomy: {
+    categories: [],
+    top_events: [],
+    validation_warnings: [],
+    retention_policies: [],
+    compression: {},
+  },
+  escalation_templates: [],
+  recovery_paths: {
+    available_actions: [],
+    recommendations: [],
+    action_distribution: [],
+    mean_confidence: 0,
+    safety_validated: 0,
+  },
+  complexity_dashboard: {
+    unique_workflow_states: 0,
+    unique_step_states: 0,
+    avg_workflow_branching: 0,
+    max_workflow_branching: 0,
+    escalation_density: 0,
+    replay_loop_rate: 0,
+    state_transition_entropy: 0,
+    event_volume_growth: 0,
+    primitive_reuse_ratio: 0,
+  },
+  guardrails: {},
+};
+
+const emptyReliabilityOptimization: NonNullable<OperationsStats["reliability_optimization"]> = {
+  browser_resource_scheduler: {
+    memory_usage_mb_estimate: 0,
+    browser_lifetime_policy: {},
+    tab_saturation_percent: 0,
+    ats_resource_cost: [],
+    adaptive_concurrency: {
+      current_active: 0,
+      recommended_new_capacity: 0,
+      crash_risk: "low",
+    },
+    pooling_policy: "Pool by user and ATS.",
+  },
+  adaptive_queue_prioritization: {
+    policy: "Approval and recovery work first.",
+    starvation_prevention: "Age-based priority boost.",
+    queues: [],
+  },
+  reliability_scoring_v2: {
+    node_stability: [],
+    ats_reliability: [],
+    fragility_prediction: {
+      risk_score: 0,
+      level: "low",
+      weakest_node: null,
+      weakest_ats: null,
+    },
+  },
+  replay_optimization: {
+    replay_latency_ms: 0,
+    replay_path_cache_candidates: [],
+    redundant_navigation_count: 0,
+    browser_warm_state_reuse: "unknown",
+    checkpoint_hydration_speed: "unknown",
+    deterministic_replay_tracing: 0,
+    replay_divergence_detection: {
+      divergent_replays: 0,
+      rate: 0,
+    },
+  },
+  intervention_cost: {
+    minutes_per_escalation: 0,
+    approvals_per_workflow: 0,
+    replay_fatigue: 0,
+    intervention_abandonment: 0,
+    estimated_human_cost_minutes: 0,
+  },
+  workflow_throughput: {
+    workflow_completion_duration_seconds: 0,
+    completed_workflows: 0,
+    active_workflows: 0,
+    queued_workflows: 0,
+    node_bottlenecks: [],
+    queue_pressure: 0,
+    concurrency_saturation: 0,
+  },
+  guardrails: {},
+};
+
 const confidenceColor = (confidence: string) => {
   if (confidence === "stable") return "text-green-400 border-green-500/20 bg-green-500/10";
   if (confidence === "directional") return "text-amber-400 border-amber-500/20 bg-amber-500/10";
@@ -202,8 +370,17 @@ export default function OperationsPage() {
   const betaObservability = stats.beta_observability ?? emptyBetaObservability;
   const pattern = stats.pattern_analysis ?? emptyPatternAnalysis;
   const signal = stats.signal_integrity ?? emptySignalIntegrity;
+  const governance = stats.governance ?? emptyGovernance;
+  const supportability = stats.supportability ?? emptySupportability;
+  const reliability = stats.reliability_scaling ?? emptyReliability;
+  const compression = stats.orchestration_compression ?? emptyOrchestrationCompression;
+  const optimization = stats.reliability_optimization ?? emptyReliabilityOptimization;
   const concurrencyLimit = Math.max(safety.concurrency_limit, 1);
   const dailyLimit = Math.max(safety.daily_limit, 1);
+  const sloEntries = Object.entries(reliability.slos);
+  const complexity = compression.complexity_dashboard;
+  const browser = optimization.browser_resource_scheduler;
+  const fragility = optimization.reliability_scoring_v2.fragility_prediction;
 
   const behavioralMetrics = [
     {
@@ -279,10 +456,220 @@ export default function OperationsPage() {
       <header>
         <div className="flex items-center gap-3 mb-2">
           <Activity className="text-blue-500" />
-          <h1 className="text-3xl font-black tracking-tight text-white uppercase">Behavioral Systems Validation</h1>
+          <h1 className="text-3xl font-black tracking-tight text-white uppercase">Orchestration Operations</h1>
         </div>
-        <p className="text-slate-400">Phase 24 signals for how humans recover, trust, and collaborate with orchestration.</p>
+        <p className="text-slate-400">Compression, reliability, and trust signals for governed workflow execution.</p>
       </header>
+
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <div className="rounded-3xl border border-slate-800 bg-slate-900/50 p-6">
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <h2 className="flex items-center gap-2 text-lg font-black uppercase tracking-tight text-white">
+              <Scale size={20} className="text-teal-400" />
+              Complexity
+            </h2>
+            <span className="rounded-full border border-teal-500/20 bg-teal-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-teal-300">
+              Phase 30
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              ["States", complexity.unique_workflow_states],
+              ["Branching", complexity.avg_workflow_branching.toFixed(2)],
+              ["Escalation", complexity.escalation_density.toFixed(2)],
+              ["Primitive Reuse", `${complexity.primitive_reuse_ratio.toFixed(1)}%`],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
+                <p className="text-2xl font-black text-white">{value}</p>
+                <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">{label}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-950 p-4">
+            <span className="text-sm font-bold text-slate-300">Event growth</span>
+            <span className={`text-sm font-black ${complexity.event_volume_growth > 50 ? "text-amber-400" : "text-green-400"}`}>
+              {complexity.event_volume_growth.toFixed(1)}%
+            </span>
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-slate-800 bg-slate-900/50 p-6">
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <h2 className="flex items-center gap-2 text-lg font-black uppercase tracking-tight text-white">
+              <ServerCog size={20} className="text-blue-400" />
+              Resource Scheduler
+            </h2>
+            <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-blue-300">
+              Phase 31
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              ["Memory", `${browser.memory_usage_mb_estimate} MB`],
+              ["Tabs", `${browser.tab_saturation_percent.toFixed(1)}%`],
+              ["Capacity", browser.adaptive_concurrency.recommended_new_capacity],
+              ["Crash Risk", browser.adaptive_concurrency.crash_risk],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
+                <p className="text-2xl font-black capitalize text-white">{value}</p>
+                <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">{label}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-950 p-4">
+            <span className="text-sm font-bold text-slate-300">Fragility</span>
+            <span className={`text-sm font-black capitalize ${riskColor(fragility.level)}`}>
+              {fragility.level} / {fragility.risk_score.toFixed(1)}
+            </span>
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-slate-800 bg-slate-900/50 p-6">
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <h2 className="flex items-center gap-2 text-lg font-black uppercase tracking-tight text-white">
+              <RotateCcw size={20} className="text-amber-400" />
+              Recovery Paths
+            </h2>
+            <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-amber-300">
+              Safe
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              ["Mean Confidence", compression.recovery_paths.mean_confidence.toFixed(2)],
+              ["Validated", compression.recovery_paths.safety_validated],
+              ["Replay Loops", `${complexity.replay_loop_rate.toFixed(1)}%`],
+              ["Divergence", `${optimization.replay_optimization.replay_divergence_detection.rate.toFixed(1)}%`],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
+                <p className="text-2xl font-black text-white">{value}</p>
+                <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">{label}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 space-y-2">
+            {compression.recovery_paths.action_distribution.slice(0, 2).map((item) => (
+              <div key={item.action} className="flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-950 p-3">
+                <span className="text-xs font-bold uppercase tracking-widest text-slate-400">{item.action.replace(/_/g, " ")}</span>
+                <span className="text-sm font-black text-amber-400">{item.count}</span>
+              </div>
+            ))}
+            {compression.recovery_paths.action_distribution.length === 0 && (
+              <p className="rounded-2xl border border-dashed border-slate-800 p-4 text-sm text-slate-500">No recovery path pressure.</p>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <div className="rounded-3xl border border-slate-800 bg-slate-900/50 p-6">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="flex items-center gap-2 text-lg font-black uppercase tracking-tight text-white">
+              <Scale size={20} className="text-green-400" />
+              Governance Queue
+            </h2>
+            <span className="rounded-full border border-green-500/20 bg-green-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-green-300">
+              Phase 27
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              ["Pending", governance.metrics.pending_reviews],
+              ["Accept", `${governance.metrics.recommendation_acceptance_rate.toFixed(1)}%`],
+              ["Rollback", governance.metrics.rollback_frequency],
+              ["Overrides", governance.metrics.human_override_frequency],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
+                <p className="text-2xl font-black text-white">{value}</p>
+                <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">{label}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 space-y-3">
+            {governance.review_queue.slice(0, 2).map((item) => (
+              <div key={item.id} className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
+                <p className="text-sm font-black text-white">{item.title}</p>
+                <p className="mt-1 text-xs text-slate-500">{item.explainability.confidence_level ?? "unknown"} confidence / {item.status.replace(/_/g, " ").toLowerCase()}</p>
+              </div>
+            ))}
+            {governance.review_queue.length === 0 && (
+              <p className="rounded-2xl border border-dashed border-slate-800 p-4 text-sm text-slate-500">No review-eligible recommendation is waiting.</p>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-slate-800 bg-slate-900/50 p-6">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="flex items-center gap-2 text-lg font-black uppercase tracking-tight text-white">
+              <Wrench size={20} className="text-amber-400" />
+              Incident Ops
+            </h2>
+            <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-amber-300">
+              Phase 28
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              ["Open", supportability.metrics.open_incidents],
+              ["MRT", `${supportability.metrics.mean_recovery_time_seconds.toFixed(0)}s`],
+              ["Replay", `${supportability.metrics.replay_recovery_success.toFixed(1)}%`],
+              ["Escalations", supportability.metrics.support_escalation_volume],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
+                <p className="text-2xl font-black text-white">{value}</p>
+                <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">{label}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 space-y-3">
+            {supportability.classification.categories.slice(0, 3).map((item) => (
+              <div key={item.classification} className="flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-950 p-4">
+                <span className="text-sm font-bold capitalize text-slate-300">{item.classification.replace(/_/g, " ")}</span>
+                <span className="text-sm font-black text-amber-400">{item.count}</span>
+              </div>
+            ))}
+            {supportability.classification.categories.length === 0 && (
+              <p className="rounded-2xl border border-dashed border-slate-800 p-4 text-sm text-slate-500">No active incident class detected.</p>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-slate-800 bg-slate-900/50 p-6">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="flex items-center gap-2 text-lg font-black uppercase tracking-tight text-white">
+              <ServerCog size={20} className="text-blue-400" />
+              Reliability Scale
+            </h2>
+            <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-blue-300">
+              Phase 29
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              ["Pools", reliability.horizontal_worker_orchestration.distributed_worker_pools.length],
+              ["Active", reliability.horizontal_worker_orchestration.browser_resource_scheduling.active_workflows],
+              ["Browser Cost", reliability.cost_capacity.browser_cost_per_workflow_units.toFixed(2)],
+              ["Replay Cost", reliability.cost_capacity.replay_overhead],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
+                <p className="text-2xl font-black text-white">{value}</p>
+                <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">{label}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 space-y-3">
+            {sloEntries.slice(0, 3).map(([key, value]) => (
+              <div key={key} className="flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-950 p-4">
+                <span className="text-sm font-bold capitalize text-slate-300">{key.replace(/_/g, " ")}</span>
+                <span className={`text-sm font-black ${value.met ? "text-green-400" : "text-red-400"}`}>{value.actual}/{value.target}</span>
+              </div>
+            ))}
+            {sloEntries.length === 0 && (
+              <p className="rounded-2xl border border-dashed border-slate-800 p-4 text-sm text-slate-500">SLO samples are waiting for workflow data.</p>
+            )}
+          </div>
+        </div>
+      </section>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-6">
         {behavioralMetrics.map((m, i) => (

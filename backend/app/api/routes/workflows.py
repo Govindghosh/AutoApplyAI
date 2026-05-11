@@ -9,7 +9,10 @@ from app.models.user import User
 from app.models.workflow import ApplicationWorkflow, WorkflowStep, WorkflowStatus
 from app.models.job import Job, JobStatus
 from app.services.event_service import EventService, EventType
+from app.services.personalization_service import OrchestrationPersonalizationService
+from app.services.recovery_service import RecoveryCompressionService
 from app.services.state_manager import StateManager
+from app.services.team_governance_service import TeamGovernanceService
 from app.services.workflow_explainability import WorkflowExplainability
 from app.services.workflow_orchestrator import WorkflowOrchestrator
 
@@ -24,7 +27,12 @@ class TerminateWorkflowRequest(BaseModel):
     reason: str | None = None
 
 
-def serialize_workflow_details(workflow: ApplicationWorkflow, steps: list[WorkflowStep]):
+def serialize_workflow_details(workflow: ApplicationWorkflow, steps: list[WorkflowStep], db: Session | None = None):
+    profile = OrchestrationPersonalizationService.get_or_create_profile(db, workflow.user_id) if db else None
+    summary = WorkflowExplainability.describe_workflow(workflow, steps)
+    if profile:
+        summary = OrchestrationPersonalizationService.compress_workflow_summary(summary, workflow, steps, profile)
+
     return {
         "workflow": {
             "id": workflow.id,
@@ -33,8 +41,9 @@ def serialize_workflow_details(workflow: ApplicationWorkflow, steps: list[Workfl
             "platform": workflow.platform_type,
             "created_at": workflow.created_at.isoformat() if workflow.created_at else None,
             "updated_at": workflow.updated_at.isoformat() if workflow.updated_at else None,
-            "summary": WorkflowExplainability.describe_workflow(workflow, steps),
+            "summary": summary,
         },
+        "personalization": OrchestrationPersonalizationService.effective_policy(profile) if profile else None,
         "steps": [
             {
                 "id": step.id,
@@ -47,7 +56,15 @@ def serialize_workflow_details(workflow: ApplicationWorkflow, steps: list[Workfl
                 "completed_at": step.completed_at.isoformat() if step.completed_at else None,
                 "input_data": step.input_data,
                 "output_data": step.output_data,
-                "explanation": WorkflowExplainability.describe_step(step),
+                "explanation": (
+                    OrchestrationPersonalizationService.compress_step_explanation(
+                        WorkflowExplainability.describe_step(step),
+                        step,
+                        workflow,
+                        profile,
+                    )
+                    if profile else WorkflowExplainability.describe_step(step)
+                ),
             } for step in steps
         ],
     }
@@ -85,7 +102,7 @@ async def get_workflow_by_job(
     if not workflow:
         raise HTTPException(status_code=404, detail="Workflow not found")
 
-    return serialize_workflow_details(workflow, get_workflow_steps(db, workflow.id))
+    return serialize_workflow_details(workflow, get_workflow_steps(db, workflow.id), db)
 
 
 @router.get("/{workflow_id}")
@@ -95,7 +112,7 @@ async def get_workflow_details(
     current_user: User = Depends(get_current_user)
 ):
     workflow = get_owned_workflow(db, workflow_id, current_user.id)
-    return serialize_workflow_details(workflow, get_workflow_steps(db, workflow.id))
+    return serialize_workflow_details(workflow, get_workflow_steps(db, workflow.id), db)
 
 @router.post("/{workflow_id}/steps/{step_id}/retry")
 async def retry_workflow_step(
@@ -105,6 +122,7 @@ async def retry_workflow_step(
     current_user: User = Depends(get_current_user)
 ):
     workflow = get_owned_workflow(db, workflow_id, current_user.id)
+    TeamGovernanceService.assert_no_conflicting_lock(db, workflow, current_user.id)
     
     step = db.query(WorkflowStep).filter(
         WorkflowStep.id == step_id,
@@ -113,6 +131,37 @@ async def retry_workflow_step(
     if not step: raise HTTPException(status_code=404)
     if step.status == WorkflowStatus.COMPLETED:
         raise HTTPException(status_code=400, detail="Completed checkpoints are already durable and cannot be replayed directly")
+
+    workflow_steps = get_workflow_steps(db, workflow.id)
+    recovery = RecoveryCompressionService.recommend(workflow, step, workflow_steps).to_dict()
+    profile = OrchestrationPersonalizationService.get_or_create_profile(db, current_user.id)
+    recovery["personalized_guidance"] = OrchestrationPersonalizationService.personalize_recovery_guidance(
+        workflow,
+        step,
+        recovery,
+        profile,
+    )
+    EventService.emit(
+        current_user.id,
+        EventType.WORKFLOW_RECOVERY_RECOMMENDED,
+        {
+            "workflow_id": workflow.id,
+            "step_id": step.id,
+            "step_name": step.name,
+            "action": recovery["action"],
+            "confidence": recovery["confidence"],
+            "safety_validated": recovery["safety_validated"],
+        },
+        resource_id=str(workflow.job_id),
+    )
+    if recovery["action"] in ["manual_escalation", "terminate_safely"]:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "Checkpoint replay is not the shortest safe recovery path for this step.",
+                "recovery": recovery,
+            },
+        )
     
     # Reset step for retry
     step.status = WorkflowStatus.PENDING
@@ -128,6 +177,16 @@ async def retry_workflow_step(
         EventType.WORKFLOW_CHECKPOINT_REPLAYED,
         {"workflow_id": workflow.id, "step_id": step.id, "step_name": step.name},
         resource_id=str(workflow.job_id),
+    )
+    TeamGovernanceService.record_audit(
+        db,
+        owner_user_id=workflow.user_id,
+        workflow_id=workflow.id,
+        actor_user_id=current_user.id,
+        action="replay_requested",
+        after_state={"step_id": step.id, "step_name": step.name, "recovery": recovery},
+        reason="retry_workflow_step",
+        commit=True,
     )
     
     # Trigger background task again if needed
@@ -145,6 +204,7 @@ async def replay_last_checkpoint(
     current_user: User = Depends(get_current_user)
 ):
     workflow = get_owned_workflow(db, workflow_id, current_user.id)
+    TeamGovernanceService.assert_no_conflicting_lock(db, workflow, current_user.id)
     step = db.query(WorkflowStep).filter(
         WorkflowStep.workflow_id == workflow.id,
         WorkflowStep.status.in_([WorkflowStatus.FAILED, WorkflowStatus.PAUSED_FOR_HUMAN]),
@@ -152,6 +212,37 @@ async def replay_last_checkpoint(
 
     if not step:
         raise HTTPException(status_code=400, detail="No failed or paused checkpoint is available to replay")
+
+    workflow_steps = get_workflow_steps(db, workflow.id)
+    recovery = RecoveryCompressionService.recommend(workflow, step, workflow_steps).to_dict()
+    profile = OrchestrationPersonalizationService.get_or_create_profile(db, current_user.id)
+    recovery["personalized_guidance"] = OrchestrationPersonalizationService.personalize_recovery_guidance(
+        workflow,
+        step,
+        recovery,
+        profile,
+    )
+    EventService.emit(
+        current_user.id,
+        EventType.WORKFLOW_RECOVERY_RECOMMENDED,
+        {
+            "workflow_id": workflow.id,
+            "step_id": step.id,
+            "step_name": step.name,
+            "action": recovery["action"],
+            "confidence": recovery["confidence"],
+            "safety_validated": recovery["safety_validated"],
+        },
+        resource_id=str(workflow.job_id),
+    )
+    if recovery["action"] in ["manual_escalation", "terminate_safely"]:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "Last checkpoint requires manual intervention or safe termination.",
+                "recovery": recovery,
+            },
+        )
 
     step.status = WorkflowStatus.PENDING
     step.error_log = None
@@ -166,6 +257,16 @@ async def replay_last_checkpoint(
         EventType.WORKFLOW_CHECKPOINT_REPLAYED,
         {"workflow_id": workflow.id, "step_id": step.id, "step_name": step.name},
         resource_id=str(workflow.job_id),
+    )
+    TeamGovernanceService.record_audit(
+        db,
+        owner_user_id=workflow.user_id,
+        workflow_id=workflow.id,
+        actor_user_id=current_user.id,
+        action="replay_requested",
+        after_state={"step_id": step.id, "step_name": step.name, "recovery": recovery},
+        reason="replay_last_checkpoint",
+        commit=True,
     )
 
     from app.workers.tasks import apply_to_job_task
@@ -183,6 +284,7 @@ async def report_workflow_step(
     current_user: User = Depends(get_current_user)
 ):
     workflow = get_owned_workflow(db, workflow_id, current_user.id)
+    TeamGovernanceService.assert_no_conflicting_lock(db, workflow, current_user.id)
     step = db.query(WorkflowStep).filter(
         WorkflowStep.id == step_id,
         WorkflowStep.workflow_id == workflow.id,
@@ -215,6 +317,7 @@ async def terminate_workflow(
     current_user: User = Depends(get_current_user)
 ):
     workflow = get_owned_workflow(db, workflow_id, current_user.id)
+    TeamGovernanceService.assert_no_conflicting_lock(db, workflow, current_user.id)
     workflow.status = WorkflowStatus.FAILED
 
     active_steps = db.query(WorkflowStep).filter(
@@ -250,6 +353,16 @@ async def terminate_workflow(
         },
         resource_id=str(workflow.job_id),
     )
+    TeamGovernanceService.record_audit(
+        db,
+        owner_user_id=workflow.user_id,
+        workflow_id=workflow.id,
+        actor_user_id=current_user.id,
+        action="workflow_terminated",
+        after_state={"reason": payload.reason if payload and payload.reason else "unspecified"},
+        reason=payload.reason if payload else None,
+        commit=True,
+    )
 
     return {"status": "terminated"}
 
@@ -266,6 +379,7 @@ async def resolve_escalation(
     Resolve a human-intervention task and resume the workflow.
     """
     workflow = get_owned_workflow(db, workflow_id, current_user.id)
+    TeamGovernanceService.assert_no_conflicting_lock(db, workflow, current_user.id)
     
     step = db.query(WorkflowStep).filter(
         WorkflowStep.id == step_id,
@@ -280,6 +394,16 @@ async def resolve_escalation(
     )
     workflow.status = WorkflowStatus.RUNNING
     db.commit()
+    TeamGovernanceService.record_audit(
+        db,
+        owner_user_id=workflow.user_id,
+        workflow_id=workflow.id,
+        actor_user_id=current_user.id,
+        action="escalation_resolved",
+        after_state={"step_id": step.id, "step_name": step.name},
+        reason="human_resolved",
+        commit=True,
+    )
     
     # Resume workflow execution
     from app.workers.tasks import apply_to_job_task

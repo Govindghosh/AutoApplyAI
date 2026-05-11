@@ -91,6 +91,7 @@ export interface UserAccount {
 export interface TelemetryEvent {
   event_id?: string;
   type: string;
+  category?: string;
   payload: unknown;
   resource_id?: string;
   timestamp: string;
@@ -129,6 +130,7 @@ export interface IntelligenceStats {
   score_correlation: ScoreCorrelation[];
   resume_performance: ResumePerformance[];
   actionable_insights: IntelligenceInsight[];
+  governed_recommendations?: GovernedRecommendationIntelligence;
 }
 
 export interface OperationsStats {
@@ -356,11 +358,312 @@ export interface OperationsStats {
       stale_signal_share: number;
     };
   };
+  governance: GovernanceStats;
+  supportability: SupportabilityStats;
+  reliability_scaling: ReliabilityScalingStats;
+  orchestration_compression?: OrchestrationCompressionStats;
+  reliability_optimization?: ReliabilityOptimizationStats;
+}
+
+export interface GovernanceRecommendation {
+  id: number;
+  source_signal: string;
+  recommendation_type: string;
+  title: string;
+  rationale: string;
+  target_policy: string;
+  proposed_change: Record<string, unknown>;
+  rollback_plan: Record<string, unknown>;
+  explainability: {
+    confidence_level?: string;
+    sample_size?: {
+      workflows?: number;
+      steps?: number;
+      events?: number;
+    };
+    temporal_stability?: string;
+    confounder_warnings?: Array<Record<string, unknown>>;
+    user_segment_scope?: Record<string, unknown>;
+    decay_weight?: Record<string, unknown>;
+  };
+  shadow_evaluation: Record<string, unknown>;
+  status: string;
+  reviewer_id?: number | null;
+  decision_note?: string | null;
+  created_at?: string | null;
+  approved_at?: string | null;
+  rolled_back_at?: string | null;
+}
+
+export interface GovernanceStats {
+  review_queue: GovernanceRecommendation[];
+  timeline: Array<{
+    id: number;
+    recommendation_id: number;
+    actor_user_id?: number | null;
+    action: string;
+    reason?: string | null;
+    before_state?: Record<string, unknown> | null;
+    after_state?: Record<string, unknown> | null;
+    outcome_metrics?: Record<string, unknown> | null;
+    created_at?: string | null;
+  }>;
+  metrics: {
+    recommendation_acceptance_rate: number;
+    rollback_frequency: number;
+    policy_drift_rate: number;
+    false_recommendation_rate: number;
+    human_override_frequency: number;
+    pending_reviews: number;
+  };
+  guardrails: {
+    note: string;
+    approval_required_for: string[];
+    shadow_modes: string[];
+  };
+}
+
+export interface SupportabilityStats {
+  incident_console: Array<{
+    workflow_id: number;
+    job_id?: number | null;
+    platform: string;
+    status: string;
+    active_step?: string | null;
+    classification: string;
+    severity: string;
+    escalation_history: number;
+    retry_history: number;
+    trace_event_count: number;
+    available_actions: string[];
+    created_at?: string | null;
+  }>;
+  trace_explorer: Array<Record<string, unknown>>;
+  classification: {
+    categories: Array<{
+      classification: string;
+      count: number;
+    }>;
+    supported_classes: string[];
+  };
+  recovery_recommendations: Array<{
+    workflow_id: number;
+    classification: string;
+    recommended_action: string;
+    mutation_allowed: boolean;
+    reason: string;
+  }>;
+  cross_layer_correlation: Record<string, number>;
+  metrics: {
+    mean_recovery_time_seconds: number;
+    replay_recovery_success: number;
+    incident_recurrence_rate: number;
+    support_escalation_volume: number;
+    ats_drift_detection_speed_minutes: number;
+    open_incidents: number;
+  };
+}
+
+export interface ReliabilityScalingStats {
+  horizontal_worker_orchestration: {
+    distributed_worker_pools: Array<{
+      queue: string;
+      platform: string;
+      workload: number;
+      active: number;
+      isolation: string;
+    }>;
+    browser_resource_scheduling: {
+      policy: string;
+      active_workflows: number;
+      risk: string;
+    };
+  };
+  durable_redundancy: Record<string, string>;
+  security_secret_governance: Record<string, unknown>;
+  observability_stack: Record<string, unknown>;
+  chaos_testing: {
+    scenarios: string[];
+    last_result: string;
+  };
+  cost_capacity: {
+    browser_cost_per_workflow_units: number;
+    orchestration_resource_usage_units: number;
+    replay_overhead: number;
+    ats_operational_cost: Array<{
+      platform: string;
+      cost_units: number;
+    }>;
+    worker_saturation_threshold: string;
+  };
+  slos: Record<string, {
+    actual: number;
+    target: number;
+    met: boolean;
+  }>;
+}
+
+export interface OrchestrationCompressionStats {
+  primitive_registry: {
+    version: string;
+    total_primitives: number;
+    primitives: Array<Record<string, unknown>>;
+    step_mapping: Record<string, string>;
+  };
+  state_surface: {
+    hierarchy: Record<string, unknown>;
+    workflow_status_map: Record<string, unknown>;
+    job_status_map: Record<string, unknown>;
+    active_state_counts: Array<{
+      state: string;
+      count: number;
+    }>;
+    unique_canonical_states: number;
+  };
+  event_taxonomy: {
+    categories: Array<{
+      category: string;
+      count: number;
+    }>;
+    top_events: Array<{
+      event_type: string;
+      count: number;
+    }>;
+    validation_warnings: Array<Record<string, unknown>>;
+    retention_policies: Array<Record<string, unknown>>;
+    compression: Record<string, unknown>;
+  };
+  escalation_templates: Array<Record<string, unknown>>;
+  recovery_paths: {
+    available_actions: string[];
+    recommendations: Array<Record<string, unknown>>;
+    action_distribution: Array<{
+      action: string;
+      count: number;
+    }>;
+    mean_confidence: number;
+    safety_validated: number;
+  };
+  complexity_dashboard: {
+    unique_workflow_states: number;
+    unique_step_states: number;
+    avg_workflow_branching: number;
+    max_workflow_branching: number;
+    escalation_density: number;
+    replay_loop_rate: number;
+    state_transition_entropy: number;
+    event_volume_growth: number;
+    primitive_reuse_ratio: number;
+  };
+  guardrails: Record<string, unknown>;
+}
+
+export interface ReliabilityOptimizationStats {
+  browser_resource_scheduler: {
+    memory_usage_mb_estimate: number;
+    browser_lifetime_policy: Record<string, unknown>;
+    tab_saturation_percent: number;
+    ats_resource_cost: Array<Record<string, unknown>>;
+    adaptive_concurrency: {
+      current_active: number;
+      recommended_new_capacity: number;
+      crash_risk: string;
+    };
+    pooling_policy: string;
+  };
+  adaptive_queue_prioritization: {
+    policy: string;
+    starvation_prevention: string;
+    queues: Array<{
+      workflow_id: number;
+      platform: string;
+      status: string;
+      priority_score: number;
+      priority_reasons: string[];
+    }>;
+  };
+  reliability_scoring_v2: {
+    node_stability: Array<Record<string, unknown>>;
+    ats_reliability: Array<Record<string, unknown>>;
+    fragility_prediction: {
+      risk_score: number;
+      level: string;
+      weakest_node?: Record<string, unknown> | null;
+      weakest_ats?: Record<string, unknown> | null;
+    };
+  };
+  replay_optimization: {
+    replay_latency_ms: number;
+    replay_path_cache_candidates: Array<Record<string, unknown>>;
+    redundant_navigation_count: number;
+    browser_warm_state_reuse: string;
+    checkpoint_hydration_speed: string;
+    deterministic_replay_tracing: number;
+    replay_divergence_detection: {
+      divergent_replays: number;
+      rate: number;
+    };
+  };
+  intervention_cost: {
+    minutes_per_escalation: number;
+    approvals_per_workflow: number;
+    replay_fatigue: number;
+    intervention_abandonment: number;
+    estimated_human_cost_minutes: number;
+  };
+  workflow_throughput: {
+    workflow_completion_duration_seconds: number;
+    completed_workflows: number;
+    active_workflows: number;
+    queued_workflows: number;
+    node_bottlenecks: Array<Record<string, unknown>>;
+    queue_pressure: number;
+    concurrency_saturation: number;
+  };
+  guardrails: Record<string, unknown>;
+}
+
+export interface GovernedRecommendation {
+  type: string;
+  target: string;
+  confidence: string;
+  sample_quality: string;
+  sample_size: number;
+  temporal_stability: string;
+  causation_warning: string;
+  rollback_safety: string;
+  message: string;
+  recommended_action: string;
+  raw_score: number;
+  authority: string;
+  automatic_mutation_allowed: boolean;
+  [key: string]: unknown;
+}
+
+export interface GovernedRecommendationIntelligence {
+  workflow_confidence: {
+    overall: string;
+    platforms: GovernedRecommendation[];
+    factors: Record<string, unknown>;
+  };
+  resume_variant_recommendations: GovernedRecommendation[];
+  ats_strategy: GovernedRecommendation[];
+  guided_recovery: GovernedRecommendation[];
+  trust_profiles: {
+    current_profile: string;
+    available_profiles: Array<Record<string, unknown>>;
+    signals: Record<string, unknown>;
+  };
+  recommendation_governance: Record<string, unknown>;
 }
 
 export interface WorkflowStepExplanation {
   label: string;
   status_text: string;
+  canonical_state?: {
+    state: string;
+    leaf: string;
+  };
   autonomy: "autonomous" | "supervised" | "approval_required" | string;
   summary: string;
   why: string;
@@ -372,6 +675,9 @@ export interface WorkflowStepExplanation {
     type: "retry" | "approve" | "wait" | "none" | string;
     label?: string | null;
   };
+  primitive?: Record<string, unknown> | null;
+  escalation?: Record<string, unknown> | null;
+  recovery_recommendation?: Record<string, unknown> | null;
 }
 
 export interface WorkflowStep {
@@ -399,6 +705,10 @@ export interface WorkflowDetails {
     summary?: {
       headline: string;
       status_text: string;
+      canonical_state?: {
+        state: string;
+        leaf: string;
+      };
       active_step_id?: number | null;
       active_step_name?: string | null;
       completed_steps: number;

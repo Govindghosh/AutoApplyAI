@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.services.event_service import redis_client
+from app.services.event_taxonomy_service import EventTaxonomyService
 from app.core.logging import logger
 
 router = APIRouter(prefix="/ws", tags=["events"])
@@ -97,6 +98,7 @@ async def get_event_history(
         {
             "event_id": e.event_id,
             "type": e.event_type,
+            "category": EventTaxonomyService.category_for(e.event_type),
             "payload": e.payload,
             "resource_id": e.resource_id,
             "timestamp": e.timestamp.isoformat()

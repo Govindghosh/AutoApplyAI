@@ -1,3 +1,8 @@
+from typing import Any, Dict
+
+from playwright.async_api import Page
+
+from app.automation.ats.base import ATSAdapter
 from app.automation.workflow_primitives import WorkflowPrimitives
 
 class GreenhouseAdapter(ATSAdapter):
@@ -5,6 +10,15 @@ class GreenhouseAdapter(ATSAdapter):
     High-fidelity automation driver for the Greenhouse ATS platform.
     Refactored to use standard WorkflowPrimitives for orchestration compression.
     """
+    platform = "Greenhouse"
+    selector_catalog = {
+        "first_name": "#first_name",
+        "last_name": "#last_name",
+        "email": "#email",
+        "phone": "#phone",
+        "resume": "input[type='file'][name='resume']",
+        "submit_button": "#submit_app",
+    }
     
     async def navigate(self, page: Page, url: str):
         await WorkflowPrimitives.navigate_with_retry(page, url, "Greenhouse")
@@ -30,7 +44,7 @@ class GreenhouseAdapter(ATSAdapter):
 
     async def submit(self, page: Page) -> bool:
         try:
-            await WorkflowPrimitives.click_button(page, "#submit_app", "Greenhouse")
+            await WorkflowPrimitives.click_button(page, self.selector_catalog["submit_button"], "Greenhouse")
             return True
         except:
             return False

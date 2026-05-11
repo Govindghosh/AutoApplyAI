@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Any
 
 from app.models.workflow import ApplicationWorkflow, WorkflowStep, WorkflowStatus
+from app.automation.workflow_primitives import WorkflowPrimitiveRegistry
+from app.services.orchestration_compression_service import OrchestrationCompressionService
 
 
 class WorkflowExplainability:
@@ -100,6 +102,7 @@ class WorkflowExplainability:
         return {
             "headline": headline_map.get(status_value, "Workflow state updated"),
             "status_text": status_value.replace("_", " ").title(),
+            "canonical_state": OrchestrationCompressionService.workflow_state(workflow.status),
             "active_step_id": active_step.id if active_step else None,
             "active_step_name": active_step.name if active_step else None,
             "completed_steps": completed_steps,
@@ -128,10 +131,13 @@ class WorkflowExplainability:
         status_value = cls._status_value(step.status)
         recovery_hint = cls._recovery_hint(step)
         why = cls._why(step, catalog)
+        primitive = WorkflowPrimitiveRegistry.for_step(step.name)
+        output_data = step.output_data or {}
 
         return {
             "label": catalog["label"],
             "status_text": status_value.replace("_", " ").title(),
+            "canonical_state": OrchestrationCompressionService.workflow_state(step.status),
             "autonomy": catalog["autonomy"],
             "summary": catalog["summary"],
             "why": why,
@@ -140,6 +146,9 @@ class WorkflowExplainability:
             "risk_level": catalog["risk_level"],
             "recovery_hint": recovery_hint,
             "next_action": cls._next_action(step),
+            "primitive": primitive.to_dict() if primitive else None,
+            "escalation": output_data.get("escalation"),
+            "recovery_recommendation": output_data.get("recovery_recommendation"),
         }
 
     @staticmethod

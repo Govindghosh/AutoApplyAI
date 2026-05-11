@@ -21,6 +21,18 @@ async def lifespan(app: FastAPI):
         from app.models.outcome import ApplicationOutcome
         from app.models.workflow import ApplicationWorkflow, WorkflowStep
         from app.models.health import SelectorHealth
+        from app.models.governance import OperationalRecommendation, GovernanceTimelineEntry
+        from app.models.personalization import OrchestrationTrustProfile, TrustCalibrationEvent
+        from app.models.ats import ATSCapabilityMatrix, ATSCertificationRun
+        from app.models.team_governance import (
+            GovernanceApprovalChain,
+            IncidentComment,
+            IncidentThread,
+            TeamOperatorRole,
+            WorkflowInterventionAudit,
+            WorkflowLock,
+            WorkflowOversightAssignment,
+        )
         
         logger.info("Syncing database schema...")
         Base.metadata.create_all(bind=engine)

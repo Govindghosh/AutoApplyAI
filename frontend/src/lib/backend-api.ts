@@ -8,6 +8,7 @@ import type {
   TokenResponse,
   TelemetryEvent,
   UserAccount,
+  GovernanceStats,
   WorkflowDetails,
   WorkflowTrace,
 } from "@/lib/types";
@@ -98,6 +99,16 @@ export const backendApi = {
 
   operations: {
     stats: () => dataOf(axiosClient.get<OperationsStats>("/operations/stats")),
+  },
+
+  governance: {
+    reviewQueue: () => dataOf(axiosClient.get<GovernanceStats>("/governance/review-queue")),
+    approve: (recommendationId: number, note?: string) =>
+      dataOf(axiosClient.post(`/governance/recommendations/${recommendationId}/approve`, { note })),
+    reject: (recommendationId: number, note?: string) =>
+      dataOf(axiosClient.post(`/governance/recommendations/${recommendationId}/reject`, { note })),
+    rollback: (recommendationId: number, note?: string) =>
+      dataOf(axiosClient.post(`/governance/recommendations/${recommendationId}/rollback`, { note })),
   },
 
   workflows: {

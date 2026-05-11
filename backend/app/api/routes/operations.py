@@ -11,6 +11,14 @@ from app.services.event_service import EventType
 from app.services.pattern_analysis_service import PatternAnalysisService
 from app.services.safety_throttle_service import SafetyThrottleService
 from app.services.signal_integrity_service import SignalIntegrityService
+from app.services.governance_service import GovernanceService
+from app.services.supportability_service import SupportabilityService
+from app.services.reliability_scaling_service import ReliabilityScalingService
+from app.services.orchestration_compression_service import OrchestrationCompressionService
+from app.services.reliability_optimization_service import ReliabilityOptimizationService
+from app.services.personalization_service import OrchestrationPersonalizationService
+from app.services.ats_capability_service import ATSCapabilityService
+from app.services.team_governance_service import TeamGovernanceService
 from app.core.logging import logger
 from datetime import datetime, timedelta, timezone
 
@@ -91,6 +99,14 @@ async def get_operational_stats(
     )
     pattern_analysis = PatternAnalysisService.build(db, current_user.id)
     signal_integrity = SignalIntegrityService.build(db, current_user.id)
+    governance = GovernanceService.build(db, current_user.id)
+    supportability = SupportabilityService.build(db, current_user.id)
+    reliability = ReliabilityScalingService.build(db, current_user.id)
+    orchestration_compression = OrchestrationCompressionService.build(db, current_user.id)
+    reliability_optimization = ReliabilityOptimizationService.build(db, current_user.id)
+    personalization = OrchestrationPersonalizationService.build_dashboard(db, current_user.id)
+    ats_governance = ATSCapabilityService.build_dashboard(db, current_user.id)
+    team_governance = TeamGovernanceService.build_dashboard(db, current_user.id, current_user.id)
 
     return {
         "slo": {
@@ -131,6 +147,14 @@ async def get_operational_stats(
         "behavioral_validation": behavioral_validation,
         "pattern_analysis": pattern_analysis,
         "signal_integrity": signal_integrity,
+        "governance": governance,
+        "supportability": supportability,
+        "reliability_scaling": reliability,
+        "orchestration_compression": orchestration_compression,
+        "reliability_optimization": reliability_optimization,
+        "personalization": personalization,
+        "ats_governance": ats_governance,
+        "team_governance": team_governance,
     }
 
 @router.post("/chaos/trigger")

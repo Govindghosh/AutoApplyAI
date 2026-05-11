@@ -5,6 +5,7 @@ import json
 from app.core.database import SessionLocal
 from app.core.logging import logger
 from app.core.config import settings
+from app.services.event_taxonomy_service import EventTaxonomyService
 import redis
 
 # Redis connection for event bus using central config
@@ -31,6 +32,9 @@ class EventType(str, Enum):
     WORKFLOW_NODE_REPORTED = "WORKFLOW_NODE_REPORTED"
     WORKFLOW_CHECKPOINT_REPLAYED = "WORKFLOW_CHECKPOINT_REPLAYED"
     WORKFLOW_TERMINATED = "WORKFLOW_TERMINATED"
+    WORKFLOW_ESCALATION_CREATED = "WORKFLOW_ESCALATION_CREATED"
+    WORKFLOW_RECOVERY_RECOMMENDED = "WORKFLOW_RECOVERY_RECOMMENDED"
+    WORKFLOW_PRIMITIVE_EXECUTED = "WORKFLOW_PRIMITIVE_EXECUTED"
     AUTOMATION_THROTTLED = "AUTOMATION_THROTTLED"
     ONBOARDING_COMPLETED = "ONBOARDING_COMPLETED"
     PRODUCT_TELEMETRY = "PRODUCT_TELEMETRY"
@@ -55,10 +59,20 @@ class EventService:
         Emits an operational event, persists it, and broadcasts via Redis.
         """
         evt_id = str(uuid.uuid4())
+        validation = EventTaxonomyService.validate_payload(event_type.value, payload)
+        if not validation["valid"]:
+            logger.warning(
+                "Event schema warning for %s: missing %s",
+                event_type.value,
+                validation["missing_fields"],
+            )
+
         event_data = {
             "event_id": evt_id,
             "user_id": user_id,
             "type": event_type.value,
+            "category": validation["category"],
+            "schema_version": validation["schema_version"],
             "payload": payload,
             "resource_id": resource_id,
             "timestamp": datetime.now(timezone.utc).isoformat()

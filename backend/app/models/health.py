@@ -17,6 +17,8 @@ class SelectorHealth(Base):
     # Drift Indicators
     last_success = Column(DateTime(timezone=True))
     last_failure = Column(DateTime(timezone=True))
+    drift_severity = Column(String, default="minor", index=True)
+    drift_classification = Column(JSON, nullable=True)
     
     # Assisted Adaptation Data
     last_known_working_dom = Column(JSON, nullable=True) # Snapshots for comparison

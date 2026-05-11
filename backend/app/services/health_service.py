@@ -22,6 +22,8 @@ class HealthService:
             health.last_success = datetime.now(timezone.utc)
             total = health.success_count + health.failure_count
             health.success_rate = health.success_count / total
+            from app.services.ats_capability_service import ATSCapabilityService
+            ATSCapabilityService.update_selector_classification(health)
             db.commit()
         finally:
             db.close()
@@ -43,6 +45,8 @@ class HealthService:
             health.last_failure = datetime.now(timezone.utc)
             total = health.success_count + health.failure_count
             health.success_rate = health.success_count / total
+            from app.services.ats_capability_service import ATSCapabilityService
+            ATSCapabilityService.update_selector_classification(health)
             db.commit()
             
             # If success rate drops below threshold, we flag for drift investigation

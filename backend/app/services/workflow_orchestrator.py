@@ -2,6 +2,9 @@ from sqlalchemy.orm import Session
 from app.models.workflow import ApplicationWorkflow, WorkflowStep, WorkflowStatus
 from app.models.job import Job
 from app.services.event_service import EventService, EventType
+from app.services.escalation_service import EscalationCompressionEngine
+from app.services.personalization_service import OrchestrationPersonalizationService
+from app.services.recovery_service import RecoveryCompressionService
 from app.core.logging import logger
 from datetime import datetime, timezone
 import json
@@ -107,6 +110,40 @@ class WorkflowOrchestrator:
             ).first()
             if workflow:
                 workflow.status = WorkflowStatus.FAILED
+                workflow_steps = db.query(WorkflowStep).filter(
+                    WorkflowStep.workflow_id == workflow.id
+                ).order_by(WorkflowStep.id).all()
+                recommendation = RecoveryCompressionService.recommend(
+                    workflow,
+                    step,
+                    workflow_steps,
+                ).to_dict()
+                profile = OrchestrationPersonalizationService.get_or_create_profile(db, workflow.user_id)
+                recommendation["personalized_guidance"] = OrchestrationPersonalizationService.personalize_recovery_guidance(
+                    workflow,
+                    step,
+                    recommendation,
+                    profile,
+                )
+                step.output_data = {
+                    **(step.output_data or {}),
+                    "failure_disposition": recommendation["action"],
+                    "recovery_recommendation": recommendation,
+                }
+                EventService.emit(
+                    workflow.user_id,
+                    EventType.WORKFLOW_RECOVERY_RECOMMENDED,
+                    {
+                        "workflow_id": workflow.id,
+                        "step_id": step.id,
+                        "step_name": step.name,
+                        "action": recommendation["action"],
+                        "confidence": recommendation["confidence"],
+                        "safety_validated": recommendation["safety_validated"],
+                    },
+                    resource_id=str(workflow.job_id),
+                    source_worker="WorkflowOrchestrator",
+                )
 
             db.commit()
 
@@ -119,15 +156,45 @@ class WorkflowOrchestrator:
         if not step or step.status == WorkflowStatus.COMPLETED:
             return
 
+        escalation = EscalationCompressionEngine.build_escalation(
+            reason,
+            workflow_id=step.workflow_id,
+            step_id=step.id,
+            step_name=step.name,
+            context=output,
+        )
+
         step.status = WorkflowStatus.PAUSED_FOR_HUMAN
         step.error_log = reason
-        step.output_data = output or {}
+        step.output_data = {
+            **(output or {}),
+            "escalation": escalation,
+        }
 
         workflow = db.query(ApplicationWorkflow).filter(
             ApplicationWorkflow.id == step.workflow_id
         ).first()
         if workflow:
+            profile = OrchestrationPersonalizationService.get_or_create_profile(db, workflow.user_id)
+            escalation["personalized"] = OrchestrationPersonalizationService.personalize_escalation(
+                escalation,
+                profile,
+            )
             workflow.status = WorkflowStatus.PAUSED_FOR_HUMAN
+            EventService.emit(
+                workflow.user_id,
+                EventType.WORKFLOW_ESCALATION_CREATED,
+                {
+                    "workflow_id": workflow.id,
+                    "step_id": step.id,
+                    "step_name": step.name,
+                    "template": escalation["template"],
+                    "priority": escalation["priority"],
+                    "governance_boundary": escalation["governance_boundary"],
+                },
+                resource_id=str(workflow.job_id),
+                source_worker="WorkflowOrchestrator",
+            )
 
         db.commit()
             
