@@ -2,6 +2,8 @@ import axiosClient from "@/lib/axios";
 import type {
   IntelligenceStats,
   Job,
+  JobListParams,
+  JobSourceSummary,
   OperationsStats,
   ProfileData,
   Resume,
@@ -41,6 +43,8 @@ export const backendApi = {
       dataOf(axiosClient.post<UserAccount>("/auth/register", credentials)),
     login: (credentials: Credentials) =>
       dataOf(axiosClient.post<TokenResponse>("/auth/login", credentials)),
+    refresh: (refreshToken: string) =>
+      dataOf(axiosClient.post<TokenResponse>("/auth/refresh", { refresh_token: refreshToken })),
     logout: () => dataOf(axiosClient.post<{ message: string }>("/auth/logout")),
     exportData: () => dataOf(axiosClient.get<Record<string, unknown>>("/auth/export")),
     purgeAccount: () => dataOf(axiosClient.delete<{ status: string }>("/auth/purge")),
@@ -78,7 +82,8 @@ export const backendApi = {
   },
 
   jobs: {
-    list: () => dataOf(axiosClient.get<Job[]>("/jobs/")),
+    list: (params?: JobListParams) => dataOf(axiosClient.get<Job[]>("/jobs/", { params })),
+    sources: () => dataOf(axiosClient.get<JobSourceSummary[]>("/jobs/sources")),
     get: (jobId: number) => dataOf(axiosClient.get<Job>(`/jobs/${jobId}`)),
     scrape: () => dataOf(axiosClient.post<{ task_id: string; status: string }>("/jobs/scrape")),
     analyze: (jobId: number) =>

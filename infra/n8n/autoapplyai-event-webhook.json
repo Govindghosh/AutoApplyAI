@@ -1,0 +1,70 @@
+{
+  "name": "AutoApplyAI Event Webhook",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "autoapplyai-events",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "autoapplyai-webhook",
+      "name": "AutoApplyAI Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "autoapplyai-events"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body ?? $json;\nconsole.log('AutoApplyAI event received:', JSON.stringify(body));\nreturn [{ json: { ok: true, event: body.event, receivedAt: new Date().toISOString(), payload: body.payload ?? body } }];"
+      },
+      "id": "autoapplyai-log-event",
+      "name": "Log Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [260, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\": true, \"event\": $json.event, \"receivedAt\": $json.receivedAt}",
+        "options": {}
+      },
+      "id": "autoapplyai-response",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [520, 0]
+    }
+  ],
+  "connections": {
+    "AutoApplyAI Webhook": {
+      "main": [
+        [
+          {
+            "node": "Log Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Event": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "autoapplyai-event-webhook-v1"
+}

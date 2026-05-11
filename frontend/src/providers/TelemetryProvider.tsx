@@ -92,8 +92,15 @@ export const TelemetryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   useEffect(() => {
     const startTimer = window.setTimeout(() => connect(), 0);
+    const handleTokenRefresh = () => {
+      socketRef.current?.close(1000);
+      connectRef.current();
+    };
+    window.addEventListener("auth_tokens_refreshed", handleTokenRefresh);
+
     return () => {
       window.clearTimeout(startTimer);
+      window.removeEventListener("auth_tokens_refreshed", handleTokenRefresh);
       if (reconnectTimerRef.current) window.clearTimeout(reconnectTimerRef.current);
       socketRef.current?.close(1000);
     };

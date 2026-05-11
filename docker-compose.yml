@@ -70,6 +70,33 @@ services:
       - pgadmin_data:/var/lib/pgadmin
 
   # ==========================================
+  # N8N WORKFLOW AUTOMATION
+  # ==========================================
+  n8n:
+    image: n8nio/n8n:latest
+
+    container_name: autoapplyai_n8n
+
+    restart: always
+
+    ports:
+      - "5678:5678"
+
+    environment:
+      N8N_HOST: localhost
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+      WEBHOOK_URL: http://localhost:5678/
+      GENERIC_TIMEZONE: Asia/Kolkata
+      TZ: Asia/Kolkata
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-autoapplyai-local-dev-encryption-key-change-me}
+      N8N_RUNNERS_ENABLED: true
+
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./infra/n8n:/files
+
+  # ==========================================
   # FASTAPI BACKEND
   # ==========================================
   backend:
@@ -102,6 +129,9 @@ services:
       redis:
         condition: service_healthy
 
+      n8n:
+        condition: service_started
+
     shm_size: '2gb'
 
   # ==========================================
@@ -132,6 +162,9 @@ services:
       redis:
         condition: service_healthy
 
+      n8n:
+        condition: service_started
+
     shm_size: '2gb'
 
   # ==========================================
@@ -161,3 +194,4 @@ services:
 volumes:
   postgres_data:
   pgadmin_data:
+  n8n_data:

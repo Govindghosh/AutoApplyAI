@@ -8,8 +8,12 @@ from app.core.config import settings
 from app.services.event_taxonomy_service import EventTaxonomyService
 import redis
 
+from app.utils.n8n import N8NClient
+
 # Redis connection for event bus using central config
 redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+n8n_client = N8NClient()
+
 
 class EventType(str, Enum):
     # Job Events
@@ -17,12 +21,12 @@ class EventType(str, Enum):
     JOB_ANALYZING = "JOB_ANALYZING"
     JOB_ANALYZED = "JOB_ANALYZED"
     JOB_FAILED = "JOB_FAILED"
-    
+
     # Resume Events
     RESUME_PROCESSING = "RESUME_PROCESSING"
     RESUME_REVIEW_REQUIRED = "RESUME_REVIEW_REQUIRED"
     RESUME_COMPLETED = "RESUME_COMPLETED"
-    
+
     # Application Events
     APPLYING_STARTED = "APPLYING_STARTED"
     APPLYING_PENDING_APPROVAL = "APPLYING_PENDING_APPROVAL"
@@ -38,22 +42,24 @@ class EventType(str, Enum):
     AUTOMATION_THROTTLED = "AUTOMATION_THROTTLED"
     ONBOARDING_COMPLETED = "ONBOARDING_COMPLETED"
     PRODUCT_TELEMETRY = "PRODUCT_TELEMETRY"
-    
+
     # System Events
     PROFILE_SYNCED = "PROFILE_SYNCED"
     SYSTEM_ALERT = "SYSTEM_ALERT"
 
+
 import uuid
 from app.models.event import SystemEvent
+
 
 class EventService:
     @staticmethod
     def emit(
-        user_id: int, 
-        event_type: EventType, 
-        payload: Dict[str, Any], 
+        user_id: int,
+        event_type: EventType,
+        payload: Dict[str, Any],
         resource_id: Optional[str] = None,
-        source_worker: Optional[str] = None
+        source_worker: Optional[str] = None,
     ):
         """
         Emits an operational event, persists it, and broadcasts via Redis.
@@ -75,9 +81,9 @@ class EventService:
             "schema_version": validation["schema_version"],
             "payload": payload,
             "resource_id": resource_id,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
-        
+
         # 1. Persist to Database (Operational Truth)
         db = SessionLocal()
         try:
@@ -87,7 +93,7 @@ class EventService:
                 event_type=event_type.value,
                 resource_id=resource_id,
                 payload=payload,
-                source_worker=source_worker
+                source_worker=source_worker,
             )
             db.add(db_event)
             db.commit()
@@ -104,6 +110,9 @@ class EventService:
         except Exception as e:
             logger.error(f"Failed to broadcast event: {e}")
 
+        # 3. Forward to n8n for external workflow automation.
+        n8n_client.trigger_event_background(event_type.value, event_data)
+
     @staticmethod
     def broadcast_system_alert(message: str, severity: str = "info"):
         """
@@ -112,6 +121,6 @@ class EventService:
         event_data = {
             "type": EventType.SYSTEM_ALERT.value,
             "payload": {"message": message, "severity": severity},
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         redis_client.publish("system_events", json.dumps(event_data))

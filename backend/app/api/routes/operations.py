@@ -14,15 +14,27 @@ from app.services.signal_integrity_service import SignalIntegrityService
 from app.services.governance_service import GovernanceService
 from app.services.supportability_service import SupportabilityService
 from app.services.reliability_scaling_service import ReliabilityScalingService
-from app.services.orchestration_compression_service import OrchestrationCompressionService
+from app.services.orchestration_compression_service import (
+    OrchestrationCompressionService,
+)
 from app.services.reliability_optimization_service import ReliabilityOptimizationService
 from app.services.personalization_service import OrchestrationPersonalizationService
 from app.services.ats_capability_service import ATSCapabilityService
 from app.services.team_governance_service import TeamGovernanceService
+from app.utils.n8n import N8NClient
 from app.core.logging import logger
 from datetime import datetime, timedelta, timezone
 
 router = APIRouter(prefix="/operations", tags=["operations"])
+
+
+def _masked_webhook_url(url: str) -> str:
+    if not url:
+        return ""
+    if len(url) <= 36:
+        return url
+    return f"{url[:28]}...{url[-8:]}"
+
 
 @router.get("/stats")
 async def get_operational_stats(
@@ -32,51 +44,88 @@ async def get_operational_stats(
     """
     Provides real-time SLO and product-friction metrics for beta validation.
     """
-    total_workflows = db.query(ApplicationWorkflow).filter(
-        ApplicationWorkflow.user_id == current_user.id
-    ).count()
-    completed_workflows = db.query(ApplicationWorkflow).filter(
-        ApplicationWorkflow.user_id == current_user.id,
-        ApplicationWorkflow.status == WorkflowStatus.COMPLETED
-    ).count()
-    
-    # Recovery Success Rate (Resumed after failure/pause)
-    recovered = db.query(WorkflowStep).join(ApplicationWorkflow).filter(
-        ApplicationWorkflow.user_id == current_user.id,
-        WorkflowStep.attempts > 1,
-        WorkflowStep.status == WorkflowStatus.COMPLETED
-    ).count()
-    
-    # Mean Intervention Rate
-    escalated = db.query(WorkflowStep).join(ApplicationWorkflow).filter(
-        ApplicationWorkflow.user_id == current_user.id,
-        WorkflowStep.status == WorkflowStatus.PAUSED_FOR_HUMAN
-    ).count()
-    
-    # Mean Workflow Duration
-    avg_duration = db.query(func.avg(WorkflowStep.duration_ms)).join(ApplicationWorkflow).filter(
-        ApplicationWorkflow.user_id == current_user.id,
-        WorkflowStep.status == WorkflowStatus.COMPLETED
-    ).scalar() or 0
+    total_workflows = (
+        db.query(ApplicationWorkflow)
+        .filter(ApplicationWorkflow.user_id == current_user.id)
+        .count()
+    )
+    completed_workflows = (
+        db.query(ApplicationWorkflow)
+        .filter(
+            ApplicationWorkflow.user_id == current_user.id,
+            ApplicationWorkflow.status == WorkflowStatus.COMPLETED,
+        )
+        .count()
+    )
 
-    approval_latency_ms = db.query(func.avg(WorkflowStep.duration_ms)).join(ApplicationWorkflow).filter(
-        ApplicationWorkflow.user_id == current_user.id,
-        WorkflowStep.name == "SUBMIT_APPLICATION",
-        WorkflowStep.status == WorkflowStatus.COMPLETED,
-        WorkflowStep.duration_ms.isnot(None),
-    ).scalar() or 0
+    # Recovery Success Rate (Resumed after failure/pause)
+    recovered = (
+        db.query(WorkflowStep)
+        .join(ApplicationWorkflow)
+        .filter(
+            ApplicationWorkflow.user_id == current_user.id,
+            WorkflowStep.attempts > 1,
+            WorkflowStep.status == WorkflowStatus.COMPLETED,
+        )
+        .count()
+    )
+
+    # Mean Intervention Rate
+    escalated = (
+        db.query(WorkflowStep)
+        .join(ApplicationWorkflow)
+        .filter(
+            ApplicationWorkflow.user_id == current_user.id,
+            WorkflowStep.status == WorkflowStatus.PAUSED_FOR_HUMAN,
+        )
+        .count()
+    )
+
+    # Mean Workflow Duration
+    avg_duration = (
+        db.query(func.avg(WorkflowStep.duration_ms))
+        .join(ApplicationWorkflow)
+        .filter(
+            ApplicationWorkflow.user_id == current_user.id,
+            WorkflowStep.status == WorkflowStatus.COMPLETED,
+        )
+        .scalar()
+        or 0
+    )
+
+    approval_latency_ms = (
+        db.query(func.avg(WorkflowStep.duration_ms))
+        .join(ApplicationWorkflow)
+        .filter(
+            ApplicationWorkflow.user_id == current_user.id,
+            WorkflowStep.name == "SUBMIT_APPLICATION",
+            WorkflowStep.status == WorkflowStatus.COMPLETED,
+            WorkflowStep.duration_ms.isnot(None),
+        )
+        .scalar()
+        or 0
+    )
 
     stale_cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
-    stale_interventions = db.query(WorkflowStep).join(ApplicationWorkflow).filter(
-        ApplicationWorkflow.user_id == current_user.id,
-        WorkflowStep.status == WorkflowStatus.PAUSED_FOR_HUMAN,
-        WorkflowStep.started_at <= stale_cutoff,
-    ).count()
+    stale_interventions = (
+        db.query(WorkflowStep)
+        .join(ApplicationWorkflow)
+        .filter(
+            ApplicationWorkflow.user_id == current_user.id,
+            WorkflowStep.status == WorkflowStatus.PAUSED_FOR_HUMAN,
+            WorkflowStep.started_at <= stale_cutoff,
+        )
+        .count()
+    )
 
-    reported_events = db.query(SystemEvent).filter(
-        SystemEvent.user_id == current_user.id,
-        SystemEvent.event_type == EventType.WORKFLOW_NODE_REPORTED.value,
-    ).all()
+    reported_events = (
+        db.query(SystemEvent)
+        .filter(
+            SystemEvent.user_id == current_user.id,
+            SystemEvent.event_type == EventType.WORKFLOW_NODE_REPORTED.value,
+        )
+        .all()
+    )
     confusion_points: dict[str, int] = {}
     for event in reported_events:
         step_name = (event.payload or {}).get("step_name", "unknown")
@@ -102,46 +151,70 @@ async def get_operational_stats(
     governance = GovernanceService.build(db, current_user.id)
     supportability = SupportabilityService.build(db, current_user.id)
     reliability = ReliabilityScalingService.build(db, current_user.id)
-    orchestration_compression = OrchestrationCompressionService.build(db, current_user.id)
+    orchestration_compression = OrchestrationCompressionService.build(
+        db, current_user.id
+    )
     reliability_optimization = ReliabilityOptimizationService.build(db, current_user.id)
-    personalization = OrchestrationPersonalizationService.build_dashboard(db, current_user.id)
+    personalization = OrchestrationPersonalizationService.build_dashboard(
+        db, current_user.id
+    )
     ats_governance = ATSCapabilityService.build_dashboard(db, current_user.id)
-    team_governance = TeamGovernanceService.build_dashboard(db, current_user.id, current_user.id)
+    team_governance = TeamGovernanceService.build_dashboard(
+        db, current_user.id, current_user.id
+    )
 
     return {
         "slo": {
-            "completion_rate": (completed_workflows / total_workflows * 100) if total_workflows > 0 else 0,
-            "recovery_success_rate": (recovered / total_workflows * 100) if total_workflows > 0 else 0,
-            "intervention_frequency": (escalated / total_workflows) if total_workflows > 0 else 0,
-            "mean_node_duration_ms": float(avg_duration)
+            "completion_rate": (
+                (completed_workflows / total_workflows * 100)
+                if total_workflows > 0
+                else 0
+            ),
+            "recovery_success_rate": (
+                (recovered / total_workflows * 100) if total_workflows > 0 else 0
+            ),
+            "intervention_frequency": (
+                (escalated / total_workflows) if total_workflows > 0 else 0
+            ),
+            "mean_node_duration_ms": float(avg_duration),
         },
         "throughput": {
-            "total_active_workflows": db.query(ApplicationWorkflow).filter(
+            "total_active_workflows": db.query(ApplicationWorkflow)
+            .filter(
                 ApplicationWorkflow.user_id == current_user.id,
-                ApplicationWorkflow.status == WorkflowStatus.RUNNING
-            ).count(),
-            "total_nodes_executed": db.query(WorkflowStep).join(ApplicationWorkflow).filter(
-                ApplicationWorkflow.user_id == current_user.id
-            ).count()
+                ApplicationWorkflow.status == WorkflowStatus.RUNNING,
+            )
+            .count(),
+            "total_nodes_executed": db.query(WorkflowStep)
+            .join(ApplicationWorkflow)
+            .filter(ApplicationWorkflow.user_id == current_user.id)
+            .count(),
         },
         "safety": SafetyThrottleService.get_usage(db, current_user),
         "beta_observability": {
-            "onboarding_completions": db.query(SystemEvent).filter(
+            "onboarding_completions": db.query(SystemEvent)
+            .filter(
                 SystemEvent.user_id == current_user.id,
                 SystemEvent.event_type == EventType.ONBOARDING_COMPLETED.value,
-            ).count(),
+            )
+            .count(),
             "active_interventions": escalated,
             "stale_interventions": stale_interventions,
             "approval_latency_ms": float(approval_latency_ms),
             "reported_nodes": len(reported_events),
-            "trace_exports": db.query(SystemEvent).filter(
+            "trace_exports": db.query(SystemEvent)
+            .filter(
                 SystemEvent.user_id == current_user.id,
                 SystemEvent.event_type == EventType.WORKFLOW_TRACE_EXPORTED.value,
-            ).count(),
-            "repeated_user_corrections": db.query(WorkflowStep).join(ApplicationWorkflow).filter(
+            )
+            .count(),
+            "repeated_user_corrections": db.query(WorkflowStep)
+            .join(ApplicationWorkflow)
+            .filter(
                 ApplicationWorkflow.user_id == current_user.id,
                 WorkflowStep.attempts > 1,
-            ).count(),
+            )
+            .count(),
             "confusion_points": top_confusion_points,
         },
         "behavioral_validation": behavioral_validation,
@@ -157,26 +230,60 @@ async def get_operational_stats(
         "team_governance": team_governance,
     }
 
+
+@router.get("/n8n/status")
+async def get_n8n_status(current_user: User = Depends(get_current_user)):
+    """
+    Shows whether the n8n webhook bridge is configured.
+    """
+    client = N8NClient()
+    return {
+        "configured": client.is_configured,
+        "webhook_url": _masked_webhook_url(client.webhook_url),
+        "user_id": current_user.id,
+    }
+
+
+@router.post("/n8n/test")
+async def test_n8n_webhook(current_user: User = Depends(get_current_user)):
+    """
+    Sends a test event to the configured n8n webhook.
+    """
+    client = N8NClient()
+    result = client.trigger_event(
+        "AUTOAPPLYAI_N8N_TEST",
+        {
+            "user_id": current_user.id,
+            "message": "AutoApplyAI n8n webhook test",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+    return result.__dict__
+
+
 @router.post("/chaos/trigger")
 async def trigger_chaos(scenario: str, db: Session = Depends(get_db)):
     """
     INTERNAL ONLY: Injects synthetic failures into the orchestration engine.
     """
     logger.warning(f"CHAOS INJECTED: Scenario -> {scenario}")
-    
+
     if scenario == "kill_worker_mid_node":
         # Simulate worker death by failing the most recent running step
-        step = db.query(WorkflowStep).filter(
-            WorkflowStep.status == WorkflowStatus.RUNNING
-        ).order_by(WorkflowStep.started_at.desc()).first()
+        step = (
+            db.query(WorkflowStep)
+            .filter(WorkflowStep.status == WorkflowStatus.RUNNING)
+            .order_by(WorkflowStep.started_at.desc())
+            .first()
+        )
         if step:
             step.status = WorkflowStatus.FAILED
             step.error_log = "SYNTHETIC FAILURE: Worker termination simulated."
             db.commit()
             return {"status": "injected", "target_step": step.id}
-            
+
     elif scenario == "simulate_redis_outage":
         # Logic to temporarily disable Redis publisher
         pass
-        
+
     return {"status": "scenario_not_found"}

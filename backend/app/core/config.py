@@ -64,13 +64,21 @@ class Settings(BaseSettings):
 
     GEMINI_API_KEY: SecretStr = SecretStr("")
 
-    GEMINI_MODEL: str = "gemini-2.0-flash"
+    OPENAI_MODEL: str = "gpt-5.4-mini"
+
+    GEMINI_MODEL: str = "gemini-2.5-flash"
 
     OPENROUTER_API_KEY: SecretStr = SecretStr("")
 
+    OPENROUTER_MODEL: str = "openai/gpt-5.4-mini"
+
     ANTHROPIC_API_KEY: SecretStr = SecretStr("")
 
+    ANTHROPIC_MODEL: str = "claude-sonnet-4-6"
+
     N8N_WEBHOOK_URL: str = ""
+
+    N8N_WEBHOOK_TIMEOUT_SECONDS: float = 3.0
 
     AWS_ACCESS_KEY_ID: SecretStr = SecretStr("")
 

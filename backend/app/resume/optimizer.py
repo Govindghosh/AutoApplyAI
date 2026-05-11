@@ -1,9 +1,9 @@
-from app.ai.claude_service import ClaudeService
 from app.core.logging import logger
+from app.services.ai_service import AIService
 
 class ResumeOptimizer:
     def __init__(self):
-        self.ai_service = ClaudeService()
+        self.ai_service = AIService()
 
     async def optimize(self, original_resume: str, job_description: str):
         prompt = f"""
@@ -23,7 +23,11 @@ class ResumeOptimizer:
         """
         
         try:
-            optimized_content = await self.ai_service.analyze_job(job_description, original_resume)
+            optimized_content = await self.ai_service.generate_text(
+                prompt,
+                task="resume_optimization",
+                max_tokens=4000,
+            )
             return optimized_content
         except Exception as e:
             logger.error(f"Resume optimization failed: {str(e)}")

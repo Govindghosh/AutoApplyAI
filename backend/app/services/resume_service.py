@@ -78,11 +78,11 @@ class ResumeService:
         )
         
         try:
-            response = await ai_service.model.generate_content_async(
+            result = await ai_service.generate_json(
                 prompt,
-                generation_config={"response_mime_type": "application/json"}
+                task="resume_normalization",
+                max_tokens=2500,
             )
-            result = ResumeService._parse_ai_json_response(response.text)
             if result.get("data"):
                 return ResumeService._normalize_result_shape(result)
         except Exception as e:

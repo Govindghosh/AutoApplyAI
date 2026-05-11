@@ -10,7 +10,8 @@ STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 class SessionManager:
     @staticmethod
     def get_session_path(platform: str, user_id: int) -> Path:
-        return STORAGE_DIR / f"user_{user_id}_{platform}.json"
+        platform_key = platform.strip().lower()
+        return STORAGE_DIR / f"user_{user_id}_{platform_key}.json"
 
     @staticmethod
     async def save_session(platform: str, user_id: int):
@@ -48,6 +49,14 @@ class SessionManager:
             "wellfound": "https://wellfound.com/login",
             "linkedin": "https://www.linkedin.com/login",
             "remoteok": "https://remoteok.com",
+            "indeed": "https://in.indeed.com",
+            "glassdoor": "https://www.glassdoor.co.in",
+            "naukri": "https://www.naukri.com",
+            "workindia": "https://www.workindia.in",
+            "foundit": "https://www.foundit.in",
+            "shine": "https://www.shine.com",
+            "timesjobs": "https://www.timesjobs.com",
+            "cutshort": "https://cutshort.io",
         }
         return urls.get(platform.lower(), "https://google.com")
 
@@ -68,8 +77,23 @@ class SessionManager:
                 
                 if session_path.exists():
                     logger.debug(f"Loading session: {platform}")
-                    return await browser.new_context(storage_state=str(session_path))
-                return await browser.new_context()
+                    return await browser.new_context(
+                        storage_state=str(session_path),
+                        viewport={"width": 1366, "height": 900},
+                        user_agent=(
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                            "AppleWebKit/537.36 (KHTML, like Gecko) "
+                            "Chrome/120.0.0.0 Safari/537.36"
+                        ),
+                    )
+                return await browser.new_context(
+                    viewport={"width": 1366, "height": 900},
+                    user_agent=(
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/120.0.0.0 Safari/537.36"
+                    ),
+                )
             except Exception as e:
                 logger.error(f"Browser launch attempt {attempt+1} failed: {e}")
                 if attempt == 2: raise e

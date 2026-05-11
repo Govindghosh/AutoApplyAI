@@ -67,12 +67,11 @@ class UniversalJobParser:
                 Return JSON format: {{"title": "...", "company": "...", "description": "..."}}
                 """
                 
-                response = await ai_service.model.generate_content_async(
+                return await ai_service.generate_json(
                     prompt,
-                    generation_config={"response_mime_type": "application/json"}
+                    task="job_parsing",
+                    max_tokens=2000,
                 )
-                import json
-                return json.loads(response.text)
         except Exception as e:
             logger.error(f"Generic AI parsing failed: {e}")
             return {"title": "Unknown", "company": "Unknown", "description": ""}

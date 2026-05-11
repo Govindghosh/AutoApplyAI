@@ -24,15 +24,38 @@ export interface Job {
   title: string;
   company: string;
   location?: string | null;
+  description?: string | null;
+  salary?: string | null;
   url: string;
   source: string;
   remote_type?: string | null;
   status: JobStatus;
   ai_score?: number | null;
   ai_analysis?: AiAnalysis | null;
+  analysis_attempts?: number;
   analysis_error?: string | null;
+  last_analysis_model?: string | null;
   created_at: string;
   updated_at?: string | null;
+}
+
+export interface JobListParams {
+  skip?: number;
+  limit?: number;
+  status?: JobStatus;
+  source?: string;
+  location?: string;
+  remote_type?: string;
+  search?: string;
+  min_score?: number;
+  max_score?: number;
+  sort?: "quality" | "score" | "newest" | "source" | "company";
+}
+
+export interface JobSourceSummary {
+  source: string;
+  count: number;
+  supported: boolean;
 }
 
 export interface Resume {

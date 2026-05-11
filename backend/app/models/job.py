@@ -1,5 +1,5 @@
 import enum
-from sqlalchemy import Column, Integer, String, Text, Float, DateTime, Enum, JSON
+from sqlalchemy import Column, Integer, String, Text, Float, DateTime, Enum, JSON, text
 from sqlalchemy.sql import func
 from app.core.database import Base
 
@@ -39,7 +39,7 @@ class Job(Base):
     ai_analysis = Column(JSON) # Structured JSON from AI
     
     # AI Pipeline Telemetry
-    analysis_attempts = Column(Integer, default=0)
+    analysis_attempts = Column(Integer, default=0, server_default=text("0"), nullable=False)
     analysis_error = Column(Text)
     analyzed_at = Column(DateTime(timezone=True))
     last_analysis_model = Column(String)
