@@ -31,49 +31,171 @@ DEFAULT_MODELS: dict[AIProvider, str] = {
 }
 
 JOB_ANALYSIS_TOKEN_BUDGET = 1200
+MAX_MISSING_KEYWORDS = 8
 
 LOCAL_ANALYSIS_STOPWORDS = {
     "about",
     "above",
+    "across",
     "after",
     "again",
     "against",
+    "all",
     "also",
+    "an",
     "and",
+    "any",
+    "applicant",
+    "application",
+    "apply",
     "are",
+    "as",
+    "at",
+    "available",
     "because",
     "been",
+    "before",
     "being",
+    "best",
     "between",
     "both",
     "but",
+    "by",
     "can",
     "candidate",
+    "candidates",
+    "client",
+    "clients",
     "company",
     "could",
+    "day",
+    "days",
     "developer",
+    "during",
     "engineer",
+    "etc",
+    "every",
+    "experience",
+    "for",
     "from",
+    "full",
+    "good",
     "have",
+    "hour",
+    "hours",
+    "hybrid",
+    "in",
+    "including",
     "into",
+    "is",
+    "it",
     "job",
+    "looking",
+    "minimum",
+    "month",
+    "monthly",
+    "months",
     "more",
     "must",
+    "need",
+    "needed",
+    "office",
+    "on",
+    "onsite",
+    "or",
+    "other",
     "our",
+    "per",
+    "preferred",
     "remote",
+    "required",
+    "requirements",
+    "responsibilities",
     "role",
+    "salary",
     "senior",
     "software",
+    "strong",
     "team",
     "that",
     "the",
     "their",
     "this",
+    "time",
+    "to",
+    "using",
+    "we",
+    "week",
+    "weekly",
+    "weeks",
     "with",
     "will",
     "work",
+    "working",
+    "year",
+    "years",
     "you",
     "your",
+}
+
+LOCAL_ANALYSIS_TECH_TERMS = {
+    "ai",
+    "api",
+    "aws",
+    "azure",
+    "celery",
+    "css",
+    "django",
+    "docker",
+    "fastapi",
+    "flask",
+    "gcp",
+    "graphql",
+    "html",
+    "java",
+    "javascript",
+    "kafka",
+    "kubernetes",
+    "mongodb",
+    "mysql",
+    "next.js",
+    "node",
+    "node.js",
+    "postgres",
+    "postgresql",
+    "python",
+    "react",
+    "redis",
+    "rest",
+    "sql",
+    "typescript",
+}
+
+LOCAL_ANALYSIS_DOMAIN_TERMS = {
+    "accessibility",
+    "analytics",
+    "architecture",
+    "automation",
+    "backend",
+    "caching",
+    "cloud",
+    "compliance",
+    "database",
+    "devops",
+    "distributed",
+    "etl",
+    "frontend",
+    "infrastructure",
+    "integration",
+    "microservices",
+    "observability",
+    "payments",
+    "performance",
+    "queues",
+    "scalability",
+    "security",
+    "testing",
+    "telemetry",
 }
 
 
@@ -120,10 +242,14 @@ class AIService:
         - experience_match: float between 0 and 100
         - location_match: float between 0 and 100
         - tech_stack_match: float between 0 and 100
-        - missing_keywords: list of strings
-        - resume_improvements: list of strings
+        - missing_keywords: list of important missing technical skills, tools, frameworks, certifications, or domain competencies only
+        - resume_improvements: list of concrete resume changes tied to real missing skills or evidence gaps
         - risk_level: one of "low", "medium", or "high"
         - justification: short string summarizing why
+
+        Do not include generic words, dates, durations, salary terms, locations, availability terms,
+        or job-posting filler in missing_keywords. Bad examples: month, months, year, years,
+        candidate, company, remote, salary.
 
         Return ONLY the JSON object.
         """
@@ -132,7 +258,7 @@ class AIService:
             data = await self.generate_json(
                 prompt, task="job_analysis", max_tokens=JOB_ANALYSIS_TOKEN_BUDGET
             )
-            return AIAnalysisOutput(**data)
+            return self._sanitize_analysis_output(AIAnalysisOutput(**data))
         except Exception as exc:
             logger.warning(
                 "AI job analysis failed for '%s'; using local deterministic fallback: %s",
@@ -389,8 +515,13 @@ class AIService:
 
         matched_terms = job_terms & resume_terms
         missing_terms = sorted(
-            job_terms - resume_terms, key=lambda term: (-len(term), term)
-        )[:8]
+            (
+                term
+                for term in job_terms - resume_terms
+                if self._is_actionable_missing_keyword(term)
+            ),
+            key=lambda term: (-len(term), term),
+        )[:MAX_MISSING_KEYWORDS]
 
         skills_match = self._ratio_score(len(matched_terms), len(job_terms))
         title_match = self._ratio_score(
@@ -414,27 +545,26 @@ class AIService:
         risk_level = (
             "low" if match_score >= 75 else "medium" if match_score >= 55 else "high"
         )
-        improvements = [
-            f"Add evidence for {term} if you have relevant experience."
-            for term in missing_terms[:3]
-        ] or ["Add more role-specific impact bullets before retrying AI analysis."]
+        improvements = self._resume_improvements_for_missing_terms(missing_terms)
 
         self.last_provider_name = "local"
         self.last_model_name = "deterministic-match"
 
-        return AIAnalysisOutput(
-            match_score=match_score,
-            skills_match=skills_match,
-            experience_match=experience_match,
-            location_match=location_match,
-            tech_stack_match=tech_stack_match,
-            missing_keywords=missing_terms,
-            resume_improvements=improvements,
-            risk_level=risk_level,
-            justification=(
-                "Local fallback used because configured AI providers were unavailable or out of quota. "
-                f"Matched {len(matched_terms)} of {len(job_terms)} extracted job keywords."
-            ),
+        return self._sanitize_analysis_output(
+            AIAnalysisOutput(
+                match_score=match_score,
+                skills_match=skills_match,
+                experience_match=experience_match,
+                location_match=location_match,
+                tech_stack_match=tech_stack_match,
+                missing_keywords=missing_terms,
+                resume_improvements=improvements,
+                risk_level=risk_level,
+                justification=(
+                    "Local fallback used because configured AI providers were unavailable or out of quota. "
+                    f"Matched {len(matched_terms)} of {len(job_terms)} extracted job keywords."
+                ),
+            )
         )
 
     @staticmethod
@@ -446,6 +576,104 @@ class AIService:
         }
         return terms
 
+    def _sanitize_analysis_output(
+        self, analysis: AIAnalysisOutput
+    ) -> AIAnalysisOutput:
+        cleaned_missing_keywords = self._clean_missing_keywords(
+            analysis.missing_keywords
+        )
+        removed_keywords = {
+            self._normalize_keyword(keyword)
+            for keyword in analysis.missing_keywords
+        } - {self._normalize_keyword(keyword) for keyword in cleaned_missing_keywords}
+
+        cleaned_improvements = [
+            improvement.strip()
+            for improvement in analysis.resume_improvements
+            if improvement
+            and not self._mentions_any_keyword(improvement, removed_keywords)
+        ]
+
+        if not cleaned_improvements:
+            cleaned_improvements = self._resume_improvements_for_missing_terms(
+                cleaned_missing_keywords
+            )
+
+        return analysis.model_copy(
+            update={
+                "missing_keywords": cleaned_missing_keywords,
+                "resume_improvements": cleaned_improvements[:5],
+            }
+        )
+
+    def _clean_missing_keywords(self, keywords: list[str]) -> list[str]:
+        cleaned: list[str] = []
+        seen: set[str] = set()
+
+        for keyword in keywords:
+            display_keyword = re.sub(r"\s+", " ", str(keyword or "")).strip(" .,:;-")
+            normalized = self._normalize_keyword(display_keyword)
+            if not normalized or normalized in seen:
+                continue
+            if not self._is_actionable_missing_keyword(normalized):
+                continue
+
+            cleaned.append(display_keyword)
+            seen.add(normalized)
+
+            if len(cleaned) >= MAX_MISSING_KEYWORDS:
+                break
+
+        return cleaned
+
+    @staticmethod
+    def _normalize_keyword(keyword: str) -> str:
+        return re.sub(r"\s+", " ", str(keyword or "").strip().lower())
+
+    @staticmethod
+    def _mentions_any_keyword(text: str, keywords: set[str]) -> bool:
+        normalized_text = AIService._normalize_keyword(text)
+        return any(
+            re.search(rf"\b{re.escape(keyword)}\b", normalized_text)
+            for keyword in keywords
+            if keyword
+        )
+
+    @staticmethod
+    def _resume_improvements_for_missing_terms(terms: list[str]) -> list[str]:
+        return [
+            f"Add concrete project or impact evidence for {term} if you have relevant experience."
+            for term in terms[:3]
+        ] or ["Strengthen role-specific impact bullets with measurable outcomes."]
+
+    @staticmethod
+    def _is_actionable_missing_keyword(term: str) -> bool:
+        normalized = AIService._normalize_keyword(term)
+        if not normalized:
+            return False
+
+        tokens = re.findall(r"[a-z][a-z0-9+#.]*", normalized)
+        if not tokens:
+            return False
+        if all(token in LOCAL_ANALYSIS_STOPWORDS for token in tokens):
+            return False
+        if any(token.isdigit() for token in tokens):
+            return False
+        if any(token in LOCAL_ANALYSIS_STOPWORDS for token in tokens):
+            return False
+
+        compact = normalized.replace(" ", "")
+        if compact in LOCAL_ANALYSIS_TECH_TERMS:
+            return True
+        if any(token in LOCAL_ANALYSIS_TECH_TERMS for token in tokens):
+            return True
+        if any(token in LOCAL_ANALYSIS_DOMAIN_TERMS for token in tokens):
+            return True
+        if any(symbol in normalized for symbol in ("+", "#", ".")):
+            return True
+
+        return len(normalized) >= 4
+
     @staticmethod
     def _ratio_score(matched: int, total: int) -> float:
         if total <= 0:
@@ -454,26 +682,7 @@ class AIService:
 
     @staticmethod
     def _tech_stack_score(job_terms: set[str], resume_terms: set[str]) -> float:
-        tech_terms = {
-            "aws",
-            "azure",
-            "docker",
-            "fastapi",
-            "flask",
-            "gcp",
-            "java",
-            "javascript",
-            "kubernetes",
-            "mongodb",
-            "node",
-            "postgresql",
-            "python",
-            "react",
-            "redis",
-            "sql",
-            "typescript",
-        }
-        job_tech = job_terms & tech_terms
+        job_tech = job_terms & LOCAL_ANALYSIS_TECH_TERMS
         if not job_tech:
             return 55.0
         return AIService._ratio_score(len(job_tech & resume_terms), len(job_tech))

@@ -14,6 +14,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import type { IntelligenceInsight, IntelligenceStats } from "@/lib/types";
+import { ListSkeleton, MetricSkeletonGrid, PageLoadingState } from "@/components/LoadingStates";
 
 const emptyStats: IntelligenceStats = {
   actionable_insights: [],
@@ -62,7 +63,25 @@ export default function IntelligenceCenter() {
     queryFn: () => backendApi.intelligence.stats(),
   });
 
-  if (isLoading) return <div className="p-8 text-slate-500 animate-pulse">Calculating operational intelligence...</div>;
+  if (isLoading) {
+    return (
+      <PageLoadingState
+        title="Intelligence Center"
+        subtitle="Calculating recommendations, source performance, and score correlation"
+        icon="brain"
+      >
+        <MetricSkeletonGrid count={3} />
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="rounded-3xl border border-slate-800 bg-slate-900/50 p-6">
+            <ListSkeleton count={4} />
+          </div>
+          <div className="rounded-3xl border border-slate-800 bg-slate-900/50 p-6">
+            <ListSkeleton count={4} />
+          </div>
+        </div>
+      </PageLoadingState>
+    );
+  }
 
   const governed = data.governed_recommendations ?? emptyStats.governed_recommendations!;
   const topResume = governed.resume_variant_recommendations[0];

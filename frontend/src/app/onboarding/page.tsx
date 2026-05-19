@@ -15,6 +15,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { appConfig } from "@/lib/config";
 import { backendApi } from "@/lib/backend-api";
+import { InlineLoading } from "@/components/LoadingStates";
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -137,8 +138,14 @@ export default function OnboardingPage() {
           disabled={completeMutation.isPending}
           className="group flex items-center gap-3 bg-white text-black px-8 py-4 rounded-full font-black uppercase tracking-widest hover:bg-blue-400 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-60"
         >
-          Enter Dashboard
-          <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+          {completeMutation.isPending ? (
+            <InlineLoading label="Entering dashboard" tone="slate" />
+          ) : (
+            <>
+              Enter Dashboard
+              <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+            </>
+          )}
         </button>
       </div>
     </div>

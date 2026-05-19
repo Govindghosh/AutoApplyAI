@@ -4,6 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { backendApi } from "@/lib/backend-api";
 import { getApiErrorMessage } from "@/lib/axios";
 import type { Job, JobSourceSummary, JobStatus } from "@/lib/types";
+import { InlineLoading, JobCardSkeleton } from "@/components/LoadingStates";
 import { 
   ExternalLink, 
   Zap, 
@@ -18,7 +19,9 @@ import {
   ChevronUp,
   Filter,
   X,
-  BriefcaseBusiness
+  BriefcaseBusiness,
+  ShieldAlert,
+  TrendingUp
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -27,6 +30,7 @@ type AnalysisFilter = "all" | "not_analyzed" | "analyzed" | "failed" | "actionab
 type RemoteFilter = "all" | "remote" | "hybrid" | "onsite" | "unknown";
 type ScoreFilter = "all" | "60" | "70" | "80" | "90";
 type SortOption = "quality" | "score" | "newest" | "source" | "company";
+type AnalysisScoreField = "skills_match" | "experience_match" | "location_match" | "tech_stack_match";
 
 const filterLabels: Record<JobFilter, string> = {
   all: "All",
@@ -76,6 +80,13 @@ const analyzedStatuses: JobStatus[] = [
   "APPLIED",
   "INTERVIEW",
   "REJECTED",
+];
+
+const scoreFields: Array<[AnalysisScoreField, string]> = [
+  ["skills_match", "Skills"],
+  ["experience_match", "Experience"],
+  ["location_match", "Location"],
+  ["tech_stack_match", "Tech stack"],
 ];
 
 export default function JobsPage() {
@@ -324,8 +335,14 @@ export default function JobsPage() {
             disabled={scrapeMutation.isPending}
             className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 border border-slate-700"
           >
-            <RefreshCw size={18} className={scrapeMutation.isPending ? "animate-spin" : ""} />
-            {scrapeMutation.isPending ? "Scraping..." : "Find Matches"}
+            {scrapeMutation.isPending ? (
+              <InlineLoading label="Scraping" />
+            ) : (
+              <>
+                <RefreshCw size={18} />
+                Find Matches
+              </>
+            )}
           </button>
           
           <button 
@@ -333,8 +350,14 @@ export default function JobsPage() {
             disabled={analyzeScrapedMutation.isPending}
             className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-all flex items-center gap-2 shadow-lg shadow-blue-600/20"
           >
-            <Zap size={18} />
-            Analyze Matches
+            {analyzeScrapedMutation.isPending ? (
+              <InlineLoading label="Queueing analysis" />
+            ) : (
+              <>
+                <Zap size={18} />
+                Analyze Matches
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -525,9 +548,7 @@ export default function JobsPage() {
       {/* Job List */}
       <div className="grid gap-4">
         {isLoading ? (
-          <div className="flex justify-center py-20">
-            <RefreshCw size={40} className="animate-spin text-blue-500" />
-          </div>
+          <JobCardSkeleton />
         ) : filteredJobs?.length === 0 ? (
           <div className="bg-slate-900/50 border border-slate-800 border-dashed py-20 rounded-2xl text-center">
             <p className="text-slate-500">No jobs match these filters.</p>
@@ -603,10 +624,14 @@ export default function JobsPage() {
                     disabled={analyzeMutation.isPending && analyzeMutation.variables === job.id}
                     className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2"
                   >
-                    <Zap size={16} className={analyzeMutation.isPending && analyzeMutation.variables === job.id ? "animate-pulse" : ""} />
                     {analyzeMutation.isPending && analyzeMutation.variables === job.id
-                      ? "Queueing..."
-                      : job.status === "ANALYSIS_FAILED" ? "Retry Analysis" : "Analyze"}
+                      ? <InlineLoading label="Queueing" />
+                      : (
+                        <>
+                          <Zap size={16} />
+                          {job.status === "ANALYSIS_FAILED" ? "Retry Analysis" : "Analyze"}
+                        </>
+                      )}
                   </button>
                 )}
 
@@ -616,8 +641,14 @@ export default function JobsPage() {
                     disabled={applyMutation.isPending}
                     className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2"
                   >
-                    <Play size={16} fill="currentColor" />
-                    Start Workflow
+                    {applyMutation.isPending && applyMutation.variables === job.id ? (
+                      <InlineLoading label="Starting" />
+                    ) : (
+                      <>
+                        <Play size={16} fill="currentColor" />
+                        Start Workflow
+                      </>
+                    )}
                   </button>
                 )}
 
@@ -627,8 +658,14 @@ export default function JobsPage() {
                     disabled={finalizeMutation.isPending}
                     className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2"
                   >
-                    <Check size={16} strokeWidth={3} />
-                    Approve Final Submit
+                    {finalizeMutation.isPending && finalizeMutation.variables === job.id ? (
+                      <InlineLoading label="Approving" tone="green" />
+                    ) : (
+                      <>
+                        <Check size={16} strokeWidth={3} />
+                        Approve Final Submit
+                      </>
+                    )}
                   </button>
                 )}
 
@@ -670,12 +707,7 @@ export default function JobsPage() {
                   )}
 
                   {job.ai_analysis && (
-                    <div className="mt-5 rounded-lg border border-blue-500/20 bg-blue-500/10 p-4">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-blue-300">AI Analysis</p>
-                      <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-blue-50">
-                        {formatDetailValue(job.ai_analysis)}
-                      </pre>
-                    </div>
+                    <AIAnalysisPanel analysis={job.ai_analysis} />
                   )}
 
                   {job.description && (
@@ -694,4 +726,151 @@ export default function JobsPage() {
       </div>
     </div>
   );
+}
+
+function AIAnalysisPanel({ analysis }: { analysis: NonNullable<Job["ai_analysis"]> }) {
+  const matchScore = numberValue(analysis.match_score);
+  const missingKeywords = stringList(analysis.missing_keywords);
+  const improvements = stringList(analysis.resume_improvements);
+  const riskLevel = stringValue(analysis.risk_level, "unknown").toLowerCase();
+  const justification = stringValue(analysis.justification);
+
+  return (
+    <div className="mt-5 rounded-lg border border-blue-500/20 bg-slate-950/50 p-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-widest text-blue-300">AI Analysis</p>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <div className="flex items-baseline gap-2">
+              <span className="text-4xl font-black tracking-tight text-white">
+                {matchScore === null ? "--" : formatPercent(matchScore)}
+              </span>
+              <span className="text-xs font-black uppercase tracking-widest text-slate-500">Match</span>
+            </div>
+            <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-black uppercase tracking-widest ${riskTone(riskLevel)}`}>
+              <ShieldAlert size={14} />
+              {riskLevel} risk
+            </span>
+          </div>
+        </div>
+
+        {justification && (
+          <div className="max-w-2xl border-l border-slate-800 pl-4 text-sm leading-relaxed text-slate-300">
+            {justification}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {scoreFields.map(([field, label]) => (
+          <ScoreMeter key={String(field)} label={label} value={numberValue(analysis[field])} />
+        ))}
+      </div>
+
+      <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+        <section className="min-w-0">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Missing Keywords</p>
+            <span className="text-xs font-semibold text-slate-600">{missingKeywords.length} gaps</span>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {missingKeywords.length ? (
+              missingKeywords.map((keyword) => (
+                <span
+                  key={keyword}
+                  className="rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-bold text-amber-100"
+                >
+                  {keyword}
+                </span>
+              ))
+            ) : (
+              <span className="text-sm text-slate-500">No major keyword gaps found.</span>
+            )}
+          </div>
+        </section>
+
+        <section className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Resume Improvements</p>
+          <div className="mt-3 space-y-2">
+            {improvements.length ? (
+              improvements.map((item, index) => (
+                <div key={`${index}-${item}`} className="flex gap-2 text-sm leading-relaxed text-slate-300">
+                  <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-emerald-400" />
+                  <span>{item}</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-slate-500">No resume changes recommended.</p>
+            )}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function ScoreMeter({ label, value }: { label: string; value: number | null }) {
+  const safeValue = value === null ? 0 : Math.max(0, Math.min(100, value));
+
+  return (
+    <div className="min-w-0 rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-bold text-slate-300">{label}</span>
+        <span className="inline-flex items-center gap-1 text-xs font-black text-blue-200">
+          <TrendingUp size={13} />
+          {value === null ? "--" : formatPercent(value)}
+        </span>
+      </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-800">
+        <div
+          className={`h-full rounded-full ${scoreTone(safeValue)}`}
+          style={{ width: `${safeValue}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function numberValue(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function stringValue(value: unknown, fallback = ""): string {
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function stringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter(Boolean);
+}
+
+function formatPercent(value: number) {
+  return `${Number.isInteger(value) ? value : value.toFixed(1)}%`;
+}
+
+function riskTone(riskLevel: string) {
+  switch (riskLevel) {
+    case "low":
+      return "border-emerald-500/20 bg-emerald-500/10 text-emerald-300";
+    case "medium":
+      return "border-amber-500/20 bg-amber-500/10 text-amber-300";
+    case "high":
+      return "border-red-500/20 bg-red-500/10 text-red-300";
+    default:
+      return "border-slate-700 bg-slate-800 text-slate-300";
+  }
+}
+
+function scoreTone(score: number) {
+  if (score >= 80) return "bg-emerald-400";
+  if (score >= 60) return "bg-blue-400";
+  if (score >= 40) return "bg-amber-400";
+  return "bg-red-400";
 }

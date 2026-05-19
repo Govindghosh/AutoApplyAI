@@ -5,9 +5,13 @@ import { backendApi } from "@/lib/backend-api";
 import { appConfig, getTelemetryWebSocketUrl } from "@/lib/config";
 import type { TelemetryEvent } from "@/lib/types";
 
+type TelemetryStatus = "idle" | "fetching_history" | "connecting" | "connected" | "reconnecting" | "offline" | "unauthenticated";
+
 interface TelemetryContextType {
   events: TelemetryEvent[];
   isConnected: boolean;
+  isHistoryLoading: boolean;
+  telemetryStatus: TelemetryStatus;
   clearEvents: () => void;
 }
 
@@ -16,16 +20,22 @@ const TelemetryContext = createContext<TelemetryContextType | undefined>(undefin
 export const TelemetryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [events, setEvents] = useState<TelemetryEvent[]>([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [telemetryStatus, setTelemetryStatus] = useState<TelemetryStatus>("idle");
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
   const connectRef = useRef<() => void>(() => {});
 
   const fetchHistory = useCallback(async () => {
+    setIsHistoryLoading(true);
+    setTelemetryStatus((current) => current === "connected" ? current : "fetching_history");
     try {
       const history = await backendApi.telemetry.history();
       setEvents(history);
     } catch (err) {
       console.error("Failed to fetch event history:", err);
+    } finally {
+      setIsHistoryLoading(false);
     }
   }, []);
 
@@ -35,8 +45,11 @@ export const TelemetryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const token = localStorage.getItem("access_token");
     if (!token) {
       console.warn("No access token found for telemetry connection");
+      setTelemetryStatus("unauthenticated");
       return;
     }
+
+    setTelemetryStatus((current) => current === "reconnecting" ? "reconnecting" : "connecting");
 
     // Fetch history first for catch-up
     fetchHistory();
@@ -50,6 +63,7 @@ export const TelemetryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     ws.onopen = () => {
       console.log("Telemetry stream connected successfully");
       setIsConnected(true);
+      setTelemetryStatus("connected");
     };
 
     ws.onmessage = (event) => {
@@ -70,11 +84,14 @@ export const TelemetryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       console.log("Telemetry stream closed:", event.code, event.reason);
       setIsConnected(false);
       if (event.code !== 1000) {
+        setTelemetryStatus("reconnecting");
         // Backoff reconnection
         reconnectTimerRef.current = window.setTimeout(
           () => connectRef.current(),
           appConfig.telemetryReconnectMs
         );
+      } else {
+        setTelemetryStatus("offline");
       }
     };
 
@@ -109,7 +126,7 @@ export const TelemetryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const clearEvents = () => setEvents([]);
 
   return (
-    <TelemetryContext.Provider value={{ events, isConnected, clearEvents }}>
+    <TelemetryContext.Provider value={{ events, isConnected, isHistoryLoading, telemetryStatus, clearEvents }}>
       {children}
     </TelemetryContext.Provider>
   );

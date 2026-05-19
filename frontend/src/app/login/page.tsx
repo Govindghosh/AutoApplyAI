@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Mail, Lock, Zap, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { backendApi } from "@/lib/backend-api";
 import { getApiErrorMessage } from "@/lib/axios";
+import { InlineLoading, PageLoadingState } from "@/components/LoadingStates";
 
 function LoginForm() {
   const [email, setEmail] = useState("");
@@ -122,8 +123,14 @@ function LoginForm() {
             disabled={loading}
             className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 group disabled:opacity-70 disabled:cursor-not-allowed transition-all"
           >
-            {loading ? "Signing in..." : "Sign In"}
-            <ArrowRight className="group-hover:translate-x-1 transition-transform" size={20} />
+            {loading ? (
+              <InlineLoading label="Signing in" />
+            ) : (
+              <>
+                Sign In
+                <ArrowRight className="group-hover:translate-x-1 transition-transform" size={20} />
+              </>
+            )}
           </button>
         </form>
 
@@ -138,8 +145,8 @@ function LoginForm() {
 
 function LoginFallback() {
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-500">
-      Loading sign in...
+    <div className="min-h-screen bg-slate-950 p-8">
+      <PageLoadingState title="Sign In" subtitle="Preparing secure session controls" icon="activity" />
     </div>
   );
 }

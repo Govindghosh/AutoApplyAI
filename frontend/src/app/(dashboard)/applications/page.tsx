@@ -12,6 +12,7 @@ import {
 import { useState } from "react";
 import WorkflowSupervisor from "@/components/WorkflowSupervisor";
 import type { Job } from "@/lib/types";
+import { InlineLoading, ListSkeleton, PageLoadingState } from "@/components/LoadingStates";
 
 const applicationStatuses = new Set(["APPLYING", "APPLYING_PENDING_APPROVAL", "APPLIED", "INTERVIEW", "REJECTED", "FAILED"]);
 
@@ -36,7 +37,17 @@ export default function ApplicationsPage() {
     },
   });
 
-  if (isLoading) return <div className="p-8 text-slate-500 animate-pulse">Loading application history...</div>;
+  if (isLoading) {
+    return (
+      <PageLoadingState
+        title="Application History"
+        subtitle="Loading submitted workflows and outcome traces"
+        icon="activity"
+      >
+        <ListSkeleton count={5} />
+      </PageLoadingState>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-8">
@@ -91,8 +102,14 @@ export default function ApplicationsPage() {
                   disabled={inspectWorkflowMutation.isPending}
                   className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-bold transition-all border border-slate-700 disabled:opacity-50"
                 >
-                  <Play size={16} fill="currentColor" />
-                  INSPECT WORKFLOW
+                  {inspectWorkflowMutation.isPending && inspectWorkflowMutation.variables === app.id ? (
+                    <InlineLoading label="Inspecting" />
+                  ) : (
+                    <>
+                      <Play size={16} fill="currentColor" />
+                      INSPECT WORKFLOW
+                    </>
+                  )}
                 </button>
 
                 <a

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { backendApi } from "@/lib/backend-api";
 import { appConfig } from "@/lib/config";
 import type { WorkflowDetails, WorkflowStep } from "@/lib/types";
+import { InlineLoading, ListSkeleton, LoadingHalo } from "@/components/LoadingStates";
 import {
   AlertCircle,
   CheckCircle2,
@@ -52,6 +53,7 @@ function downloadJson(filename: string, payload: unknown) {
 export default function WorkflowSupervisor({ workflowId, onClose }: { workflowId: number; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [notice, setNotice] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
   const telemetrySentFor = useRef<number | null>(null);
 
   const { data, isLoading } = useQuery<WorkflowDetails>({
@@ -142,9 +144,14 @@ export default function WorkflowSupervisor({ workflowId, onClose }: { workflowId
   });
 
   const exportTrace = async () => {
-    const trace = await backendApi.transparency.trace(workflowId);
-    downloadJson(`workflow-${workflowId}-trace.json`, trace);
-    setNotice("Workflow trace exported.");
+    setIsExporting(true);
+    try {
+      const trace = await backendApi.transparency.trace(workflowId);
+      downloadJson(`workflow-${workflowId}-trace.json`, trace);
+      setNotice("Workflow trace exported.");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const terminateWorkflow = () => {
@@ -156,7 +163,25 @@ export default function WorkflowSupervisor({ workflowId, onClose }: { workflowId
     }
   };
 
-  if (isLoading) return null;
+  if (isLoading) {
+    return (
+      <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[200] flex items-center justify-end">
+        <div className="w-full max-w-2xl h-full bg-slate-900 border-l border-slate-800 shadow-2xl flex flex-col">
+          <header className="p-6 border-b border-slate-800">
+            <LoadingHalo label="Opening supervisor" detail={`Workflow ID ${workflowId}`} />
+          </header>
+          <div className="border-b border-slate-800 bg-slate-950/40 p-6">
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+              <div className="h-full w-1/2 animate-pulse rounded-full bg-blue-400" />
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto p-8">
+            <ListSkeleton count={5} />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const summary = data?.workflow.summary;
 
@@ -248,7 +273,11 @@ export default function WorkflowSupervisor({ workflowId, onClose }: { workflowId
                               className="p-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg border border-red-500/20 disabled:opacity-50"
                               title="Replay checkpoint"
                             >
-                              <RotateCcw size={14} />
+                              {retryMutation.isPending && retryMutation.variables?.id === step.id ? (
+                                <InlineLoading label="" tone="amber" />
+                              ) : (
+                                <RotateCcw size={14} />
+                              )}
                             </button>
                           )}
                           <button
@@ -257,7 +286,11 @@ export default function WorkflowSupervisor({ workflowId, onClose }: { workflowId
                             className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-lg border border-slate-700 disabled:opacity-50"
                             title="Report node"
                           >
-                            <Flag size={14} />
+                            {reportMutation.isPending && reportMutation.variables?.id === step.id ? (
+                              <InlineLoading label="" />
+                            ) : (
+                              <Flag size={14} />
+                            )}
                           </button>
                         </div>
                       </div>
@@ -306,18 +339,31 @@ export default function WorkflowSupervisor({ workflowId, onClose }: { workflowId
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={exportTrace}
+              disabled={isExporting}
               className="py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 border border-slate-700"
             >
-              <Download size={16} className="text-blue-400" />
-              EXPORT TRACE
+              {isExporting ? (
+                <InlineLoading label="EXPORTING" />
+              ) : (
+                <>
+                  <Download size={16} className="text-blue-400" />
+                  EXPORT TRACE
+                </>
+              )}
             </button>
             <button
               onClick={() => replayMutation.mutate()}
               disabled={replayMutation.isPending}
               className="py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 border border-slate-700 disabled:opacity-50"
             >
-              <RefreshCw size={16} className="text-amber-400" />
-              REPLAY LAST
+              {replayMutation.isPending ? (
+                <InlineLoading label="REPLAYING" tone="amber" />
+              ) : (
+                <>
+                  <RefreshCw size={16} className="text-amber-400" />
+                  REPLAY LAST
+                </>
+              )}
             </button>
             <button
               onClick={() => refreshWorkflow()}
@@ -331,8 +377,14 @@ export default function WorkflowSupervisor({ workflowId, onClose }: { workflowId
               disabled={terminateMutation.isPending}
               className="py-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg font-bold text-sm transition-all border border-red-500/20 flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              <Power size={16} />
-              TERMINATE
+              {terminateMutation.isPending ? (
+                <InlineLoading label="TERMINATING" tone="amber" />
+              ) : (
+                <>
+                  <Power size={16} />
+                  TERMINATE
+                </>
+              )}
             </button>
           </div>
         </footer>

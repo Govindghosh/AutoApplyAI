@@ -4,6 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import { backendApi } from "@/lib/backend-api";
 import type { ProfileData, Resume } from "@/lib/types";
+import { InlineLoading, ListSkeleton, PageLoadingState } from "@/components/LoadingStates";
 import {
   ArrowLeft,
   Save,
@@ -62,7 +63,18 @@ export default function ExtractionReviewPage() {
     }
   });
 
-  if (resumeLoading || profileLoading) return <div className="p-20 text-center text-slate-500">Initializing review interface...</div>;
+  if (resumeLoading || profileLoading) {
+    return (
+      <PageLoadingState
+        title="Extraction Review"
+        subtitle="Preparing resume fields, confidence scores, and profile sync controls"
+        icon="brain"
+        className="max-w-5xl"
+      >
+        <ListSkeleton count={5} />
+      </PageLoadingState>
+    );
+  }
   if (!resume) return <div className="p-20 text-center text-slate-500">Resume not found.</div>;
 
   const getConfidenceBadge = (score: number) => {
@@ -111,8 +123,14 @@ export default function ExtractionReviewPage() {
           disabled={approveMutation.isPending || approvedFields.length === 0}
           className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg shadow-blue-600/20 disabled:opacity-50"
         >
-          <Save size={18} />
-          Sync {approvedFields.length} Selected Fields
+          {approveMutation.isPending ? (
+            <InlineLoading label="Syncing fields" />
+          ) : (
+            <>
+              <Save size={18} />
+              Sync {approvedFields.length} Selected Fields
+            </>
+          )}
         </button>
       </div>
 

@@ -5,6 +5,7 @@ import { backendApi } from "@/lib/backend-api";
 import { getApiErrorMessage } from "@/lib/axios";
 import { appConfig } from "@/lib/config";
 import type { ProfileData, Resume } from "@/lib/types";
+import { InlineLoading, ListSkeleton, PageLoadingState, SkeletonBlock } from "@/components/LoadingStates";
 import {
   User,
   Briefcase,
@@ -232,9 +233,12 @@ function ResumeSection({
           }}
         />
         {uploading ? (
-          <div className="flex flex-col items-center gap-2 text-orange-400">
-            <Loader2 size={22} className="animate-spin" />
-            <span className="text-sm font-medium">Uploading and queuing extraction...</span>
+          <div className="flex flex-col items-center gap-3 text-orange-300">
+            <InlineLoading label="Uploading and queuing extraction" tone="amber" />
+            <div className="w-full max-w-xs space-y-2">
+              <SkeletonBlock className="h-2 rounded-full" />
+              <SkeletonBlock className="h-2 w-2/3 rounded-full" />
+            </div>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-2">
@@ -295,10 +299,29 @@ export default function ProfilePage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-60 text-slate-500">
-        <Loader2 size={20} className="animate-spin mr-2" />
-        Loading profile...
-      </div>
+      <PageLoadingState
+        title="Professional Context"
+        subtitle="Loading profile, resume policy, and extraction state"
+        icon="database"
+        className="max-w-4xl"
+      >
+        <div className="grid gap-6">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-8">
+            <div className="grid gap-6 md:grid-cols-2">
+              <SkeletonBlock className="h-12 rounded-lg" />
+              <SkeletonBlock className="h-12 rounded-lg" />
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-8">
+            <div className="grid gap-6 md:grid-cols-3">
+              <SkeletonBlock className="h-12 rounded-lg" />
+              <SkeletonBlock className="h-12 rounded-lg" />
+              <SkeletonBlock className="h-12 rounded-lg" />
+            </div>
+          </div>
+          <ListSkeleton count={3} />
+        </div>
+      </PageLoadingState>
     );
   }
 
@@ -314,8 +337,14 @@ export default function ProfilePage() {
           disabled={updateMutation.isPending}
           className="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white px-6 py-2 rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg shadow-blue-600/20"
         >
-          <Save size={18} />
-          {updateMutation.isPending ? "Saving..." : "Save Context"}
+          {updateMutation.isPending ? (
+            <InlineLoading label="Saving" />
+          ) : (
+            <>
+              <Save size={18} />
+              Save Context
+            </>
+          )}
         </button>
       </div>
 

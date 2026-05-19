@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { backendApi } from "@/lib/backend-api";
 import { appConfig } from "@/lib/config";
 import type { OperationsStats } from "@/lib/types";
+import { ListSkeleton, MetricSkeletonGrid, PageLoadingState, TableSkeleton } from "@/components/LoadingStates";
 import {
   Activity, 
   ShieldCheck, 
@@ -363,7 +364,23 @@ export default function OperationsPage() {
     refetchInterval: appConfig.operationsRefreshMs,
   });
 
-  if (isLoading || !stats) return <div className="p-8 text-slate-500 animate-pulse">Loading operational proof...</div>;
+  if (isLoading || !stats) {
+    return (
+      <PageLoadingState
+        title="Operational Health"
+        subtitle="Hydrating SLOs, safety limits, governance, and live reliability signals"
+        icon="stream"
+      >
+        <MetricSkeletonGrid count={4} />
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="rounded-3xl border border-slate-800 bg-slate-900/50 p-6">
+            <ListSkeleton count={5} />
+          </div>
+          <TableSkeleton rows={5} columns={4} />
+        </div>
+      </PageLoadingState>
+    );
+  }
 
   const behavior = stats.behavioral_validation ?? emptyBehavioralValidation;
   const safety = stats.safety ?? emptySafety;

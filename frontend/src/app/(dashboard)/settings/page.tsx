@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { backendApi } from "@/lib/backend-api";
 import { appConfig } from "@/lib/config";
+import { InlineLoading } from "@/components/LoadingStates";
 import { 
   ShieldCheck, 
   Download, 
@@ -14,6 +15,7 @@ import {
 
 export default function SettingsPage() {
   const [isExporting, setIsExporting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleExport = async () => {
@@ -34,6 +36,7 @@ export default function SettingsPage() {
   };
 
   const handleDeleteAccount = async () => {
+    setIsDeleting(true);
     try {
       await backendApi.auth.purgeAccount();
       localStorage.removeItem("access_token");
@@ -41,6 +44,7 @@ export default function SettingsPage() {
       window.location.href = "/login";
     } catch (err) {
       console.error("Account deletion failed:", err);
+      setIsDeleting(false);
     }
   };
 
@@ -72,7 +76,7 @@ export default function SettingsPage() {
               disabled={isExporting}
               className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold text-sm transition-all disabled:opacity-50"
             >
-              {isExporting ? "Exporting..." : "Request Export"}
+              {isExporting ? <InlineLoading label="Exporting" /> : "Request Export"}
             </button>
           </div>
 
@@ -124,9 +128,10 @@ export default function SettingsPage() {
               </button>
               <button 
                 onClick={handleDeleteAccount}
-                className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold"
+                disabled={isDeleting}
+                className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold disabled:opacity-60"
               >
-                Confirm Deletion
+                {isDeleting ? <InlineLoading label="Deleting" tone="amber" /> : "Confirm Deletion"}
               </button>
             </div>
           </div>

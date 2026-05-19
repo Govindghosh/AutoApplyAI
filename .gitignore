@@ -1,0 +1,35 @@
+# Local environment and secrets
+.env
+.env.*
+backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
+
+# Runtime storage and local service data
+storage/resumes/*
+storage/sessions/*
+backend/storage/resumes/*
+backend/storage/sessions/*
+n8n_data/
+postgres_data/
+pgadmin_data/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+venv/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# Logs and OS files
+*.log
+.DS_Store
+Thumbs.db

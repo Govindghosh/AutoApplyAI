@@ -2,6 +2,7 @@
 
 import { useTelemetry } from "@/providers/TelemetryProvider";
 import { appConfig } from "@/lib/config";
+import { InlineLoading, SkeletonBlock } from "@/components/LoadingStates";
 import { 
   Activity, 
   Terminal, 
@@ -17,8 +18,9 @@ import {
 import { useState } from "react";
 
 export default function LiveMissionControl() {
-  const { events, isConnected } = useTelemetry();
+  const { events, isConnected, isHistoryLoading, telemetryStatus } = useTelemetry();
   const [isExpanded, setIsExpanded] = useState(false);
+  const isSyncing = isHistoryLoading || telemetryStatus === "connecting" || telemetryStatus === "fetching_history" || telemetryStatus === "reconnecting";
 
   const getEventIcon = (type: string) => {
     if (type.includes("FAILED")) return <AlertCircle size={14} className="text-red-500" />;
@@ -37,7 +39,7 @@ export default function LiveMissionControl() {
           className="p-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between cursor-pointer hover:bg-slate-900 transition-colors"
         >
           <div className="flex items-center gap-3">
-            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-red-500'}`} />
+            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : isSyncing ? 'bg-amber-400 animate-pulse' : 'bg-red-500'}`} />
             <h4 className="text-xs font-black uppercase tracking-widest text-white flex items-center gap-2">
               <Activity size={14} className="text-blue-400" />
               Mission Control
@@ -49,10 +51,19 @@ export default function LiveMissionControl() {
         {/* Content */}
         {isExpanded && (
           <div className="h-80 overflow-y-auto bg-slate-900 p-2 space-y-1 font-mono text-[10px]">
-            {events.length === 0 ? (
+            {isSyncing && events.length === 0 ? (
+              <div className="py-16 px-4 text-center">
+                <InlineLoading label={telemetryStatus === "reconnecting" ? "Reconnecting stream" : "Syncing event stream"} tone="blue" />
+                <div className="mx-auto mt-4 max-w-56 space-y-2">
+                  <SkeletonBlock className="h-2 rounded-full" />
+                  <SkeletonBlock className="h-2 w-4/5 rounded-full" />
+                  <SkeletonBlock className="h-2 w-2/3 rounded-full" />
+                </div>
+              </div>
+            ) : events.length === 0 ? (
               <div className="py-20 text-center text-slate-600">
                 <Terminal size={24} className="mx-auto mb-2 opacity-20" />
-                Waiting for system events...
+                {telemetryStatus === "unauthenticated" ? "Sign in to stream events." : "Waiting for system events..."}
               </div>
             ) : (
               events.map((event, i) => (
@@ -79,7 +90,7 @@ export default function LiveMissionControl() {
         {/* Status Bar */}
         <div className="px-4 py-2 bg-slate-950 border-t border-slate-800 flex justify-between items-center text-[10px]">
           <span className="text-slate-500">{events.length} Events Captured</span>
-          <span className="text-slate-500 italic">{appConfig.appPhase}</span>
+          <span className="text-slate-500 italic">{isSyncing ? telemetryStatus.replace(/_/g, " ") : appConfig.appPhase}</span>
         </div>
       </div>
     </div>

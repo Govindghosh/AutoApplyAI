@@ -6,11 +6,11 @@ import {
   Send,
   CheckCircle,
   Zap,
-  RefreshCw,
   ExternalLink,
 } from "lucide-react";
 import { backendApi } from "@/lib/backend-api";
 import type { IntelligenceStats, Job, ProfileData } from "@/lib/types";
+import { ListSkeleton, MetricSkeletonGrid } from "@/components/LoadingStates";
 
 const applicationStatuses = ["APPLIED", "INTERVIEW", "REJECTED"];
 
@@ -64,28 +64,29 @@ export default function DashboardPage() {
         <p className="text-slate-400 mt-1">Here&apos;s what&apos;s happening with your job search today.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat) => (
-          <div key={stat.name} className="bg-slate-900 border border-slate-800 p-6 rounded-xl hover:border-slate-700 transition-colors">
-            <div className="flex items-center justify-between mb-4">
-              <div className={`p-2 rounded-lg bg-slate-800 ${stat.color}`}>
-                <stat.icon size={24} />
+      {jobsLoading ? (
+        <MetricSkeletonGrid />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {stats.map((stat) => (
+            <div key={stat.name} className="bg-slate-900 border border-slate-800 p-6 rounded-xl hover:border-slate-700 transition-colors">
+              <div className="flex items-center justify-between mb-4">
+                <div className={`p-2 rounded-lg bg-slate-800 ${stat.color}`}>
+                  <stat.icon size={24} />
+                </div>
               </div>
+              <p className="text-slate-400 text-sm font-medium">{stat.name}</p>
+              <h3 className="text-2xl font-bold mt-1">{stat.value}</h3>
             </div>
-            <p className="text-slate-400 text-sm font-medium">{stat.name}</p>
-            <h3 className="text-2xl font-bold mt-1">{jobsLoading ? "..." : stat.value}</h3>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
           <h3 className="text-lg font-semibold mb-4">Recent Jobs</h3>
           {jobsLoading ? (
-            <div className="flex items-center gap-2 text-slate-500 text-sm">
-              <RefreshCw size={16} className="animate-spin" />
-              Loading jobs...
-            </div>
+            <ListSkeleton compact />
           ) : recentJobs.length > 0 ? (
             <div className="space-y-3">
               {recentJobs.map((job) => (
@@ -113,7 +114,9 @@ export default function DashboardPage() {
 
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
           <h3 className="text-lg font-semibold mb-4">Upcoming Interviews</h3>
-          {interviewJobs.length > 0 ? (
+          {jobsLoading ? (
+            <ListSkeleton compact count={3} />
+          ) : interviewJobs.length > 0 ? (
             <div className="space-y-3">
               {interviewJobs.map((job) => (
                 <div key={job.id} className="rounded-lg border border-slate-800 bg-slate-950/60 px-4 py-3">

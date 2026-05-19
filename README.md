@@ -30,6 +30,7 @@ Next.js frontend
   -> Celery workers for scraping, AI analysis, resume processing, and workflows
   -> Playwright/ATS adapters for browser automation
   -> AI provider router for OpenAI, Anthropic, Gemini, and OpenRouter
+  -> n8n through backend-emitted webhooks for notifications and ops integrations
 ```
 
 ## Tech Stack
@@ -70,6 +71,7 @@ Operations:
 - Docker Compose
 - Flower for Celery monitoring
 - PgAdmin for database inspection
+- n8n for external notification, reporting, and integration automation
 
 ## Repository Layout
 
@@ -78,11 +80,13 @@ AutoApplyAI/
 |-- README.md
 |-- architecture.png
 |-- docker-compose.yml
+|-- infra/
+|   `-- n8n/
+|-- storage/
 |-- backend/
 |   |-- Dockerfile
 |   |-- requirements.txt
 |   |-- alembic/
-|   |-- storage/
 |   |-- tests/
 |   `-- app/
 |       |-- api/
@@ -293,6 +297,7 @@ Important notes:
 - In Docker Compose, use `http://n8n:5678/webhook/autoapplyai-events` for the n8n webhook URL.
 - For manual local backend execution outside Docker, use `http://localhost:5678/webhook/autoapplyai-events` instead.
 - For manual local backend execution outside Docker, use `localhost` in database and Redis URLs.
+- Runtime uploads and browser session state are stored in repo-root `storage/`, mounted into backend and Celery containers at `/app/storage`.
 - Do not commit real API keys.
 
 Frontend configuration is read from `NEXT_PUBLIC_*` variables:
@@ -471,6 +476,8 @@ n8n webhook automation:
 4. Save and activate the workflow.
 5. Keep `N8N_WEBHOOK_URL=http://n8n:5678/webhook/autoapplyai-events` for Docker Compose backend/celery.
 6. Verify from the backend API with `POST /api/v1/operations/n8n/test`.
+
+n8n is intentionally an integration layer only. The FastAPI backend remains the orchestration source of truth for workflow state, checkpoints, retries, ATS adapters, browser automation, governance, and replay semantics. n8n workflows should handle external notifications, incident routing, reporting, digests, and integration exports.
 
 ## Troubleshooting
 

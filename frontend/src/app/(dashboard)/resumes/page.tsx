@@ -4,6 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { backendApi } from "@/lib/backend-api";
 import { appConfig } from "@/lib/config";
 import Link from "next/link";
+import { InlineLoading, SkeletonBlock, TableSkeleton } from "@/components/LoadingStates";
 import { 
   FileText, 
   Plus, 
@@ -74,9 +75,15 @@ export default function ResumesPage() {
           <p className="text-slate-400 mt-1">Manage variants, optimization lineage, and extraction quality.</p>
         </div>
         
-        <label className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-blue-600/20">
-          <Plus size={18} />
-          Upload Resume
+        <label className={`bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-blue-600/20 ${uploadMutation.isPending ? "pointer-events-none opacity-70" : ""}`}>
+          {uploadMutation.isPending ? (
+            <InlineLoading label="Uploading" />
+          ) : (
+            <>
+              <Plus size={18} />
+              Upload Resume
+            </>
+          )}
           <input 
             type="file" 
             accept={uploadAccept}
@@ -95,7 +102,15 @@ export default function ResumesPage() {
           </div>
           
           <div className="space-y-4">
-            {resumes?.filter(r => r.is_base).map(base => (
+            {isLoading ? (
+              <>
+                <SkeletonBlock className="h-16 rounded-xl" />
+                <div className="ml-8 border-l-2 border-slate-800 pl-6 space-y-2">
+                  <SkeletonBlock className="h-12 rounded-lg" />
+                  <SkeletonBlock className="h-12 rounded-lg" />
+                </div>
+              </>
+            ) : resumes?.filter(r => r.is_base).map(base => (
               <div key={base.id} className="space-y-2">
                 <div className="flex items-center gap-3 p-4 bg-slate-900 border border-blue-500/30 rounded-xl">
                   <FileText className="text-blue-400" size={20} />
@@ -150,9 +165,7 @@ export default function ResumesPage() {
       {/* Job List / Empty State */}
       <div className="grid gap-4">
         {isLoading ? (
-          <div className="flex justify-center py-20">
-            <RefreshCw size={40} className="animate-spin text-blue-500" />
-          </div>
+          <TableSkeleton rows={4} columns={5} />
         ) : !resumes || resumes.length === 0 ? (
           <div className="bg-slate-900/50 border border-slate-800 border-dashed py-20 rounded-2xl text-center space-y-4">
             <div className="inline-flex items-center justify-center p-4 rounded-full bg-blue-600/10 border border-blue-500/20 mb-2">
@@ -165,8 +178,14 @@ export default function ResumesPage() {
             </p>
             <div className="pt-4">
               <label className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-bold transition-all inline-flex items-center gap-2 cursor-pointer shadow-lg shadow-blue-600/20">
-                <Plus size={18} />
-                Upload Your First PDF
+                {uploadMutation.isPending ? (
+                  <InlineLoading label="Uploading" />
+                ) : (
+                  <>
+                    <Plus size={18} />
+                    Upload Your First PDF
+                  </>
+                )}
                 <input 
                   type="file" 
                   accept={uploadAccept}

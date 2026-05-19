@@ -21,6 +21,9 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+    networks:
+      - autoapplyai_network
+
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -39,6 +42,9 @@ services:
 
     ports:
       - "6379:6379"
+
+    networks:
+      - autoapplyai_network
 
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -69,6 +75,9 @@ services:
     volumes:
       - pgadmin_data:/var/lib/pgadmin
 
+    networks:
+      - autoapplyai_network
+
   # ==========================================
   # N8N WORKFLOW AUTOMATION
   # ==========================================
@@ -83,10 +92,10 @@ services:
       - "5678:5678"
 
     environment:
-      N8N_HOST: localhost
+      N8N_HOST: n8n
       N8N_PORT: 5678
       N8N_PROTOCOL: http
-      WEBHOOK_URL: http://localhost:5678/
+      WEBHOOK_URL: http://n8n:5678/
       GENERIC_TIMEZONE: Asia/Kolkata
       TZ: Asia/Kolkata
       N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-autoapplyai-local-dev-encryption-key-change-me}
@@ -95,6 +104,9 @@ services:
     volumes:
       - n8n_data:/home/node/.n8n
       - ./infra/n8n:/files
+
+    networks:
+      - autoapplyai_network
 
   # ==========================================
   # FASTAPI BACKEND
@@ -121,6 +133,7 @@ services:
 
     volumes:
       - ./backend:/app
+      - ./storage:/app/storage
 
     depends_on:
       db:
@@ -133,6 +146,9 @@ services:
         condition: service_started
 
     shm_size: '2gb'
+
+    networks:
+      - autoapplyai_network
 
   # ==========================================
   # CELERY WORKER
@@ -154,6 +170,7 @@ services:
 
     volumes:
       - ./backend:/app
+      - ./storage:/app/storage
 
     depends_on:
       db:
@@ -166,6 +183,9 @@ services:
         condition: service_started
 
     shm_size: '2gb'
+
+    networks:
+      - autoapplyai_network
 
   # ==========================================
   # FLOWER DASHBOARD
@@ -191,7 +211,14 @@ services:
       - redis
       - celery_worker
 
+    networks:
+      - autoapplyai_network
+
 volumes:
   postgres_data:
   pgadmin_data:
   n8n_data:
+
+networks:
+  autoapplyai_network:
+    driver: bridge

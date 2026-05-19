@@ -426,3 +426,58 @@ async def test_ai_service_uses_local_job_analysis_when_provider_credits_fail(
     assert service.last_model_descriptor == "local:deterministic-match"
     assert analysis.match_score > 50
     assert "Local fallback used" in analysis.justification
+
+
+@pytest.mark.asyncio
+async def test_ai_service_sanitizes_non_actionable_missing_keywords(monkeypatch):
+    import app.services.ai_service as ai_module
+
+    monkeypatch.setattr(ai_module.settings, "OPENAI_API_KEY", SecretStr("openai-key"))
+    monkeypatch.setattr(ai_module.settings, "ANTHROPIC_API_KEY", SecretStr(""))
+    monkeypatch.setattr(ai_module.settings, "GEMINI_API_KEY", SecretStr(""))
+    monkeypatch.setattr(ai_module.settings, "OPENROUTER_API_KEY", SecretStr(""))
+
+    async def fake_call_provider(self, provider, prompt, response_format, max_tokens):
+        return """
+        {
+            "match_score": 75.25,
+            "skills_match": 80,
+            "experience_match": 65,
+            "location_match": 70,
+            "tech_stack_match": 55,
+            "missing_keywords": ["month", "Kafka"],
+            "resume_improvements": [
+                "Add evidence for month if you have relevant experience.",
+                "Mention Kafka-backed queueing work if you have it."
+            ],
+            "risk_level": "low",
+            "justification": "Good fit with one actionable missing skill."
+        }
+        """
+
+    monkeypatch.setattr(AIService, "_call_provider", fake_call_provider)
+
+    service = AIService()
+    analysis = await service.analyze_job(
+        "Backend Engineer",
+        "6 month contract building Python services with Kafka.",
+        "Backend engineer with Python services experience.",
+    )
+
+    assert analysis.missing_keywords == ["Kafka"]
+    assert all("month" not in item.lower() for item in analysis.resume_improvements)
+    assert "Kafka" in analysis.resume_improvements[0]
+
+
+def test_local_job_analysis_filters_time_words_from_resume_advice():
+    service = AIService()
+
+    analysis = service._local_job_analysis(
+        "Backend Engineer",
+        "6 month remote role building Python FastAPI services with Redis and Docker.",
+        "Backend engineer with Python, FastAPI, Redis, and Docker experience.",
+    )
+
+    assert "month" not in analysis.missing_keywords
+    assert "remote" not in analysis.missing_keywords
+    assert all("month" not in item.lower() for item in analysis.resume_improvements)
